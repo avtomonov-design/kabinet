@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0.2';
+const APP_VERSION = '3.0.3';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -460,18 +460,32 @@ $('#setSave').onclick = async () => {
   ghPreflight.ok = false; for (const [k, , t] of FIELDS) { if (k === '§') continue; const el = $(`#setForm [name=${k}]`); DB.settings[k] = t === 'number' ? +el.value : el.value.trim(); } storePhoto.have = null; await save(); prog('#setProg', 'Настройки сохранены'); };
 $('#bkGh').onclick = () => backupGh(false);
 $('#tgFind').onclick = tgFindChat; $('#tgTest').onclick = tgTest;
+function tgSay(t, kind = 'info') { const el = $('#tgProg'); el.className = 'msg ' + kind; el.textContent = t; }
 async function tgFindChat() {
-  const tok = $('#setForm [name=tgBot]').value.trim(); if (!tok) return prog('#setProg', 'Сначала вставьте токен бота');
+  const tok = $('#setForm [name=tgBot]').value.trim().replace(/^bot/i, '').replace(/\s+/g, '');
+  if (!tok) return tgSay('Сначала вставьте токен бота в поле «Токен своего бота» 👆', 'warn');
+  if (!/^\d+:[\w-]{30,}$/.test(tok)) return tgSay('Это не похоже на токен бота. Он выглядит так: 123456789:AAH…, скопируйте его из @BotFather целиком', 'warn');
+  tgSay('Ищу ваш чат с ботом… ⏳');
   try {
-    const r = await N.bridge('fetch', { url: `https://api.telegram.org/bot${tok}/getUpdates` });
-    if (!r.ok) return prog('#setProg', 'Telegram не принял токен — проверьте, что скопировали его целиком');
-    const ups = (r.data.result || []).map(u => (u.message || u.my_chat_member || {}).chat).filter(Boolean);
+    const me = await N.bridge('fetch', { url: `https://api.telegram.org/bot${tok}/getMe` }, 20000);
+    if (!me.ok) return tgSay('Telegram не принял токен — проверьте, что скопировали его целиком', 'bad');
+    const r = await N.bridge('fetch', { url: `https://api.telegram.org/bot${tok}/getUpdates` }, 20000);
+    const ups = ((r.data && r.data.result) || []).map(u => (u.message || u.my_chat_member || u.edited_message || {}).chat).filter(Boolean);
     const c = ups.reverse().find(x => x.type === 'private');
-    if (!c) return prog('#setProg', 'Не вижу ваших сообщений боту: откройте бота в Telegram, нажмите «Старт» (или напишите любое слово) и нажмите кнопку ещё раз');
-    $('#setForm [name=tgChat]').value = c.id; prog('#setProg', `Нашёл: ${c.first_name || ''} ${c.username ? '@' + c.username : ''}, chat id ${c.id}. Нажмите «Сохранить» и «Проверить уведомления».`);
-  } catch (e) { prog('#setProg', e.message); }
+    if (!c) return tgSay(`Бот @${me.data.result.username} на месте, но не вижу ваших сообщений. Откройте его в Telegram, нажмите «Старт» (или напишите любое слово) и нажмите кнопку ещё раз`, 'warn');
+    $('#setForm [name=tgChat]').value = c.id;
+    DB.settings.tgBot = tok; DB.settings.tgChat = String(c.id); await save();
+    tgSay(`Нашёл: ${c.first_name || ''}${c.username ? ' @' + c.username : ''} (chat id ${c.id}) и сохранил ✅ Теперь нажмите «Проверить уведомления»`, 'ok');
+  } catch (e) { tgSay('Не получилось: ' + e.message, 'bad'); }
 }
-async function tgTest() { const st = DB.settings; if (!st.tgBot || !st.tgChat) return prog('#setProg', 'Сохраните токен бота и chat id'); try { await N.telegram(st.tgBot, st.tgChat, 'Кабинет витрины на связи ✅ Сюда будут приходить итоги обновления цен и выгрузки.'); prog('#setProg', 'Отправил тестовое сообщение — проверьте Telegram'); } catch (e) { prog('#setProg', e.message); } }
+async function tgTest() {
+  const st = DB.settings; if (!st.tgBot || !st.tgChat) return tgSay('Сначала «Найти мой chat id»', 'warn');
+  tgSay('Отправляю… ⏳');
+  try {
+    const r = await N.bridge('fetch', { url: `https://api.telegram.org/bot${st.tgBot}/sendMessage`, method: 'POST', headers: { 'Content-Type': 'application/json' }, body: { text: JSON.stringify({ chat_id: st.tgChat, text: 'Кабинет витрины на связи ✅ Сюда будут приходить итоги обновления цен и выгрузки.' }) } }, 20000);
+    r.ok ? tgSay('Отправил — проверьте Telegram 🎉', 'ok') : tgSay('Telegram ответил ошибкой: ' + ((r.data && r.data.description) || r.status), 'bad');
+  } catch (e) { tgSay('Не получилось: ' + e.message, 'bad'); }
+}
 $('#bkGhLoad').onclick = async () => { try { const st = DB.settings; const d = JSON.parse(new TextDecoder().decode(await N.ghRead(st.ghToken, st.ghBackup, st.ghBranch, 'backup/db.json'))); if (!confirm(`Восстановить копию: ${d.cards.length} карточек? Текущие данные будут заменены.`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); prog('#setProg', 'Восстановлено с GitHub'); } catch (e) { prog('#setProg', e.message); } };
 $('#bkFile').onclick = () => { const { undo, ...rest } = DB; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
 $('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
