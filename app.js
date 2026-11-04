@@ -1,4 +1,4 @@
-const APP_VERSION = '3.1.2';
+const APP_VERSION = '3.1.3';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -525,8 +525,8 @@ async function tgTest() {
   } catch (e) { tgSay('Не получилось: ' + e.message, 'bad'); }
 }
 $('#bkGhLoad').onclick = async () => { try { const st = DB.settings; const d = JSON.parse(new TextDecoder().decode(await N.ghRead(st.ghToken, st.ghBackup, st.ghBranch, 'backup/db.json'))); if (!confirm(`Восстановить копию: ${d.cards.length} карточек? Текущие данные будут заменены.`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); prog('#setProg', 'Восстановлено с GitHub'); } catch (e) { prog('#setProg', e.message); } };
-$('#bkFile').onclick = () => { const { undo, ...rest } = DB; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
-$('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
+$('#bkFile').onclick = () => { const { undo, ...rest } = DB; rest.settings = { ...rest.settings, figmaToken: '', ghToken: '', tgBot: '' }; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
+$('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; const keep = { figmaToken: DB.settings.figmaToken, ghToken: DB.settings.ghToken, tgBot: DB.settings.tgBot }; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; for (const k in keep) if (!DB.settings[k]) DB.settings[k] = keep[k]; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
 
 // ---------- автоматизация ----------
 let BRIDGE_V = '';
