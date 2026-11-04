@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0.1';
+const APP_VERSION = '3.0.2';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -459,6 +459,19 @@ $('#setSave').onclick = async () => {
   for (const k of ['ghPhotos', 'ghBackup']) { const v = $(`#setForm [name=${k}]`).value.trim(); if (v && !/^[\w.-]+\/[\w.-]+$/.test(v)) return prog('#setProg', `Поле «${k === 'ghPhotos' ? 'Репозиторий для фото' : 'Репозиторий для копии'}»: нужно название вида владелец/имя (например avtomonov-design/context-store-photos), а не ${/^github_pat_|^ghp_/.test(v) ? 'токен' : 'ссылка'}`); }
   ghPreflight.ok = false; for (const [k, , t] of FIELDS) { if (k === '§') continue; const el = $(`#setForm [name=${k}]`); DB.settings[k] = t === 'number' ? +el.value : el.value.trim(); } storePhoto.have = null; await save(); prog('#setProg', 'Настройки сохранены'); };
 $('#bkGh').onclick = () => backupGh(false);
+$('#tgFind').onclick = tgFindChat; $('#tgTest').onclick = tgTest;
+async function tgFindChat() {
+  const tok = $('#setForm [name=tgBot]').value.trim(); if (!tok) return prog('#setProg', 'Сначала вставьте токен бота');
+  try {
+    const r = await N.bridge('fetch', { url: `https://api.telegram.org/bot${tok}/getUpdates` });
+    if (!r.ok) return prog('#setProg', 'Telegram не принял токен — проверьте, что скопировали его целиком');
+    const ups = (r.data.result || []).map(u => (u.message || u.my_chat_member || {}).chat).filter(Boolean);
+    const c = ups.reverse().find(x => x.type === 'private');
+    if (!c) return prog('#setProg', 'Не вижу ваших сообщений боту: откройте бота в Telegram, нажмите «Старт» (или напишите любое слово) и нажмите кнопку ещё раз');
+    $('#setForm [name=tgChat]').value = c.id; prog('#setProg', `Нашёл: ${c.first_name || ''} ${c.username ? '@' + c.username : ''}, chat id ${c.id}. Нажмите «Сохранить» и «Проверить уведомления».`);
+  } catch (e) { prog('#setProg', e.message); }
+}
+async function tgTest() { const st = DB.settings; if (!st.tgBot || !st.tgChat) return prog('#setProg', 'Сохраните токен бота и chat id'); try { await N.telegram(st.tgBot, st.tgChat, 'Кабинет витрины на связи ✅ Сюда будут приходить итоги обновления цен и выгрузки.'); prog('#setProg', 'Отправил тестовое сообщение — проверьте Telegram'); } catch (e) { prog('#setProg', e.message); } }
 $('#bkGhLoad').onclick = async () => { try { const st = DB.settings; const d = JSON.parse(new TextDecoder().decode(await N.ghRead(st.ghToken, st.ghBackup, st.ghBranch, 'backup/db.json'))); if (!confirm(`Восстановить копию: ${d.cards.length} карточек? Текущие данные будут заменены.`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); prog('#setProg', 'Восстановлено с GitHub'); } catch (e) { prog('#setProg', e.message); } };
 $('#bkFile').onclick = () => { const { undo, ...rest } = DB; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
 $('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
