@@ -1,4 +1,4 @@
-const APP_VERSION = '3.2.0';
+const APP_VERSION = '3.2.1';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -385,6 +385,8 @@ async function runUpdate(auto) {
     if (R.back.length) t.push(`🟢 Вернулись в продажу: ${R.back.join(', ')}`);
     if (R.errors.length) t.push(`⚠️ Не обновились: ${R.errors.length} (данные не тронуты)`);
     if (!auto) t.push('Чтобы изменения попали на витрину, нажмите «Выгрузить на витрину»');
+    else if (DB.settings.autoMode !== 'export') t.push('⏸ Витрину не выгружал: в настройках «только обновить». Нажмите «Выгрузить на витрину» или включите автовыгрузку');
+    else t.push('🚀 Сейчас выгружу на витрину…');
     notify(t.join('\n'));
     res = { R, pr };
   } catch (e) { prog('#uProg', ''); $('#uOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="uOk">Закрыть</button></div>`; $('#uOk').onclick = closeModal; if (auto) notify(`❌ Автообновление не прошло: ${e.message}`); }
@@ -584,7 +586,7 @@ async function autoCheck() {
   const slot = dueSlot(); if (!slot || busy || autoCheck.running) return false;
   autoCheck.running = true; DB.lastAutoSlot = slot; await save();
   try {
-    log('Авто', 'Запуск ' + slot.slice(11));
+    log('Авто', 'Запуск ' + slot.slice(11) + (DB.settings.autoMode === 'export' ? ' (обновить и выгрузить)' : ' (только обновить)'));
     const r = await runUpdate(true);
     if (r && DB.settings.autoMode === 'export') {
       const plan = await openExport(true);
