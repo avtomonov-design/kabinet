@@ -1,4 +1,4 @@
-const APP_VERSION = '3.1.0';
+const APP_VERSION = '3.1.1';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -108,7 +108,8 @@ function closeModal() { if (dlg.open) dlg.close(); }
 // ---------- карточка ----------
 function editCard(c) {
   const P0 = P(), an = C.anomalies(c), pos = DB.order[c.cat].indexOf(c.id) + 1;
-  const sizes = c.sizes.map(s => `<span class="sz ${s.enabled === false ? 'dis' : an.has(s.sku) ? 'an' : s.stock ? 'on' : ''}" data-sku="${h(s.sku)}" title="${h(s.sku)} — нажмите, чтобы ${s.enabled === false ? 'включить' : 'выключить'} размер">${h(s.sz)} <small>${s.J ? fmt(s.J + P0) : '—'}</small></span>`).join('') || '<span class="muted">размеры появятся после обновления цен</span>';
+  const sizesHtml = () => { const an = C.anomalies(c); return c.sizes.map(s => `<span class="sz ${s.enabled === false ? 'dis' : an.has(s.sku) ? 'an' : s.stock ? 'on' : ''}" data-sku="${h(s.sku)}" title="${h(s.sku)} — нажмите, чтобы ${s.enabled === false ? 'включить' : 'выключить'} размер">${h(s.sz)} <small>${s.J ? fmt(s.J + P0) : '—'}</small></span>`).join('') || '<span class="muted">размеры появятся после обновления цен</span>'; };
+  const checkedHtml = () => `${h(c.group)}${c.status.checked ? ' · проверено ' + dstr(c.status.checked) : ''}`;
   modal(`<h2>${h(c.name) || 'Карточка'} <span class="muted">· ${C.catName(c.cat)}, место ${pos}</span></h2>
   <div class="strip" id="strip">${c.photos.map((p, i) => `<div class="th" draggable="true" data-i="${i}"><img src="${h(C.photoUrl(p))}" alt=""><button data-del="${i}" title="Убрать">×</button></div>`).join('') || '<span class="muted">Фото нет</span>'}</div>
   <div class="acts"><button id="cFig" ${c.figma && DB.settings.figmaToken ? '' : 'disabled'}>Загрузить фото из трафарета</button><label class="filebtn">Добавить с компьютера<input type="file" id="cFile" accept="image/*" multiple></label><span class="muted" id="cProg"></span></div>
@@ -117,8 +118,8 @@ function editCard(c) {
     <label>Трафарет Figma</label><input id="cFigUrl" placeholder="ссылка на трафарет (node-id=…)" value="${c.figma ? h(`https://www.figma.com/design/${c.figma.key || figmaKey()}/?node-id=${c.figma.node.replace(':', '-')}`) : ''}">
     <label>Ссылка 4Partners с цветом</label><input id="cLink" value="${h(c.link ? C.keyOf(c) : '')}" placeholder="https://store.4partners.io/ru/product/…#v…">
     <label>Раздел</label><select id="cCat"><option value="1016" ${c.cat === '1016' ? 'selected' : ''}>Девушкам</option><option value="1015" ${c.cat === '1015' ? 'selected' : ''}>Парням</option></select>
-    <label>Размеры</label><div class="sizes" id="cSizes">${sizes}</div>
-    <label>ID в TgShop</label><div class="muted" style="padding-top:8px">${h(c.group)}${c.status.checked ? ' · проверено ' + dstr(c.status.checked) : ''}</div>
+    <label>Размеры</label><div><div class="sizes" id="cSizes">${sizesHtml()}</div><div class="acts" style="margin:8px 0 0"><button class="small" id="c4p" ${c.link ? '' : 'disabled'}>🔄 Сверить с 4Partners</button>${c.link ? `<a class="muted" href="${h(C.keyOf(c))}" target="_blank">открыть на 4Partners ↗</a>` : ''}</div><div id="c4pOut"></div></div>
+    <label>ID в TgShop</label><div class="muted" style="padding-top:8px" id="cChecked">${checkedHtml()}</div>
   </div>
   <div class="acts"><button class="danger" id="cDel">Удалить карточку</button><span style="flex:1"></span><label class="muted"><input type="checkbox" id="cOn" ${c.enabled ? 'checked' : ''}> включена на витрине</label><button id="cClose">Закрыть</button><button class="primary" id="cSave">Сохранить</button></div>`, root => {
     let photos = [...c.photos];
@@ -130,7 +131,32 @@ function editCard(c) {
       th.ondrop = e => { e.preventDefault(); const a = +e.dataTransfer.getData('text/plain'), b = +th.dataset.i; const [x] = photos.splice(a, 1); photos.splice(b, 0, x); drawStrip(); };
     });
     bindStrip();
-    root.querySelectorAll('.sz[data-sku]').forEach(el => el.onclick = () => { const s = c.sizes.find(x => x.sku === el.dataset.sku); s.enabled = s.enabled === false; el.classList.toggle('dis', s.enabled === false); });
+    const bindSizes = () => root.querySelectorAll('.sz[data-sku]').forEach(el => el.onclick = () => { const s = c.sizes.find(x => x.sku === el.dataset.sku); s.enabled = s.enabled === false; el.classList.toggle('dis', s.enabled === false); });
+    bindSizes();
+    root.querySelector('#c4p').onclick = async () => {
+      if (busy) return; const out = root.querySelector('#c4pOut'), btn = root.querySelector('#c4p'); btn.disabled = true; busy = true;
+      out.innerHTML = '<div class="msg info">Спрашиваю у 4Partners… ⏳</div>';
+      try {
+        const data = await N.fetch4P([c.link]), d = data[c.link];
+        const r = C.updateCard(c, d && d.status === 200 ? d.vs : null, C.hasTwin(DB, c), C.idState(DB));
+        if (r.error) { c.status.error = r.error; out.innerHTML = `<div class="msg bad">Не сверилось: ${h(r.error)}. Данные не тронуты.</div>`; }
+        else {
+          delete c.status.error; c.status.checked = new Date().toISOString();
+          const pr = r.changes.filter(x => x.oSt && x.nSt && x.oJ !== x.nJ), end = r.changes.filter(x => x.oSt && !x.nSt), app = r.changes.filter(x => !x.oSt && x.nSt);
+          const live = C.liveSizes(c).length, t = [];
+          if (pr.length) t.push(`цена изменилась: ${pr.map(x => `${h(x.sz)} ${fmt(x.oJ + P0)} → ${fmt(x.nJ + P0)} ₽`).join(', ')}`);
+          if (end.length) t.push(`закончились: ${end.map(x => h(x.sz)).join(', ')}`);
+          if (app.length) t.push(`появились: ${app.map(x => h(x.sz)).join(', ')}`);
+          if (r.added.length) t.push(`новые размеры: ${r.added.map(x => h(x.sz)).join(', ')}`);
+          r.notes.forEach(n => t.push(h(n)));
+          if (r.soldOut) t.push('🔴 распродалась целиком — останется на витрине с остатком 0'); if (r.back) t.push('🟢 вернулась в продажу');
+          out.innerHTML = `<div class="msg ${t.length ? 'warn' : 'ok'}">${t.length ? '<b>Есть изменения:</b><br>' + t.join('<br>') : '✅ Всё совпадает с 4Partners'}<br><span class="muted">В продаже размеров: ${live}. ${t.length ? 'Чтобы изменения попали на витрину — «Выгрузить на витрину».' : ''}</span></div>`;
+          log('Цены', `Сверка «${c.name}» с 4Partners: ${t.length ? 'есть изменения' : 'без изменений'}`);
+        }
+        await save(); root.querySelector('#cSizes').innerHTML = sizesHtml(); bindSizes(); root.querySelector('#cChecked').innerHTML = checkedHtml(); renderGrid(); renderStatus();
+      } catch (e) { out.innerHTML = `<div class="msg bad">${h(e.message)}</div>`; }
+      busy = false; btn.disabled = false;
+    };
     root.querySelector('#cClose').onclick = closeModal;
     if (root.querySelector('#cNameBack')) root.querySelector('#cNameBack').onclick = () => { root.querySelector('#cName').value = c.figma.title.slice(0, 30); c.nameManual = false; };
     root.querySelector('#cFile').onchange = async e => {
