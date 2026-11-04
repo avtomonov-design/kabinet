@@ -464,8 +464,9 @@ $('#bkFile').onclick = () => { const { undo, ...rest } = DB; download(new TextEn
 $('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
 
 (async () => {
+  $('.brand small').textContent = 'подключаюсь к расширению…';
   const v = await N.hasBridge();
-  if (!v) { document.body.innerHTML = `<main style="max-width:640px;margin:60px auto;font:15px/1.5 -apple-system,Segoe UI,sans-serif"><h1>Нужно расширение-мост</h1><p>Кабинет работает через расширение «conтекст store — кабинет витрины (мост)» в этом Chrome: оно ходит в 4Partners и TgShop через ваши входы и хранит базу на этом компьютере.</p><p>Установите его по инструкции из чата и обновите эту страницу.</p></main>`; return; }
+  if (!v) { document.body.innerHTML = `<main style="max-width:640px;margin:60px auto;font:15px/1.5 -apple-system,Segoe UI,sans-serif"><h1>Нужно расширение-мост</h1><p>Кабинет работает через расширение «conтекст store — кабинет витрины (мост)» в этом Chrome: оно ходит в 4Partners и TgShop через ваши входы и хранит базу на этом компьютере.</p><p>Установите его по инструкции из чата и обновите эту страницу.</p><p style="color:#6b6b73">Если уже установили: откройте chrome://extensions — у расширения должно быть название «…(мост)» и версия 3.0.0. Если там «кабинет витрины 2.0», значит, файлы не заменились — распакуйте архив в ту же папку и нажмите «Обновить» (круглая стрелка).</p></main>`; return; }
   $('.brand small').textContent = 'кабинет витрины · ' + APP_VERSION + ' · мост ' + v;
   await load(); render();
 })();
