@@ -1,4 +1,4 @@
-const APP_VERSION = '3.1.3';
+const APP_VERSION = '3.2.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -13,7 +13,7 @@ const DEFAULTS = {
   shortDesc: 'Уточним ваш размер перед отправкой, или оплатим возврат\nЛицензия «Баркод»\nВ «Меню» есть информация о лицензии',
   attrs: 'Тип размера|EURO;Доставка|по России 14-30 дней;Возврат|Платный, товар из-за рубежа;Оплата при получении|Недоступна;Примерка в CDEK|Доступна;Фото товара|Изображен реальный товар;Лицензия|Баркод',
   sizeGrid: 'Калькулятор размера|https://telegra.ph/Podbor-razmera-06-17',
-  figmaToken: '', figmaUrl: 'https://www.figma.com/design/UqC8M7ln2Uisxpo1YEMdfh/Витрина?node-id=2-34',
+  figmaToken: '', figmaUrl: 'https://www.figma.com/design/UqC8M7ln2Uisxpo1YEMdfh/Витрина?node-id=1-4',
   ghToken: '', ghPhotos: '', ghBackup: '', ghBranch: 'main',
   tgBot: '', tgChat: '',
   autoOn: false, autoTimes: '10:00, 19:00', autoMode: 'update',
@@ -23,7 +23,7 @@ let DB = { cards: [], order: { '1016': [], '1015': [] }, settings: { ...DEFAULTS
 let CAT = '1016', busy = false;
 
 // ---------- хранение ----------
-async function load() { const db2 = await N.dbGet('db2'); if (db2) DB = { ...DB, ...db2, settings: { ...DEFAULTS, ...(db2.settings || {}) } }; }
+async function load() { const db2 = await N.dbGet('db2'); if (db2) DB = { ...DB, ...db2, settings: { ...DEFAULTS, ...(db2.settings || {}) } }; if (/UqC8M7ln2Uisxpo1YEMdfh.*node-id=2-34/.test(DB.settings.figmaUrl)) DB.settings.figmaUrl = DEFAULTS.figmaUrl; delete DB.showcase; }
 let bkTimer = null;
 async function save(quiet) {
   await N.dbSet('db2', DB);
@@ -59,6 +59,7 @@ function renderStatus() {
 
 // ---------- витрина: сетка карточек ----------
 function filtered() {
+  Object.defineProperty(DB, '_moved', { value: C.movedCards(DB, CAT), configurable: true, writable: true, enumerable: false });
   const q = $('#q').value.trim().toLowerCase(), f = $('#flt').value;
   return DB.order[CAT].map((id, i) => ({ c: card(id), i })).filter(({ c }) => {
     if (!c) return false;
@@ -67,7 +68,7 @@ function filtered() {
     if (f === 'warn' && !hs.some(x => x[0] === 'warn' || x[0] === 'bad')) return false;
     if (f === 'sold' && !c.status.soldOutSince) return false;
     if (f === 'off' && c.enabled) return false;
-    if (f === 'nofig' && c.figma) return false;
+    if (f === 'moved' && !DB._moved.has(c.id)) return false;
     return !q || (c.name + ' ' + c.group + ' ' + c.sizes.map(s => s.sku).join(' ')).toLowerCase().includes(q);
   });
 }
@@ -110,27 +111,22 @@ function editCard(c) {
   const P0 = P(), an = C.anomalies(c), pos = DB.order[c.cat].indexOf(c.id) + 1;
   const sizesHtml = () => { const an = C.anomalies(c); return c.sizes.map(s => `<span class="sz ${s.enabled === false ? 'dis' : an.has(s.sku) ? 'an' : s.stock ? 'on' : ''}" data-sku="${h(s.sku)}" title="${h(s.sku)} — нажмите, чтобы ${s.enabled === false ? 'включить' : 'выключить'} размер">${h(s.sz)} <small>${s.J ? fmt(s.J + P0) : '—'}</small></span>`).join('') || '<span class="muted">размеры появятся после обновления цен</span>'; };
   const checkedHtml = () => `${h(c.group)}${c.status.checked ? ' · проверено ' + dstr(c.status.checked) : ''}`;
-  modal(`<h2>${h(c.name) || 'Карточка'} <span class="muted">· ${C.catName(c.cat)}, место ${pos}</span></h2>
-  <div class="strip" id="strip">${c.photos.map((p, i) => `<div class="th" draggable="true" data-i="${i}"><img src="${h(C.photoUrl(p))}" alt=""><button data-del="${i}" title="Убрать">×</button></div>`).join('') || '<span class="muted">Фото нет</span>'}</div>
-  <div class="acts"><button id="cFig" ${c.figma && DB.settings.figmaToken ? '' : 'disabled'}>Загрузить фото из трафарета</button><label class="filebtn">Добавить с компьютера<input type="file" id="cFile" accept="image/*" multiple></label><span class="muted" id="cProg"></span></div>
+  const fPos = C.movedCards(DB, c.cat).get(c.id);
+  modal(`<h2>${h(c.name) || 'Карточка'} <span class="muted">· ${C.catName(c.cat)}, место ${pos}</span></h2>${fPos ? `<div class="msg info">↕ Стоит не как в Figma: там ${fPos}-я. <button class="small" id="cPlace">Вернуть на место как в Figma</button></div>` : ''}
+  <div class="strip" id="strip"></div>
+  <div class="acts"><button id="cFig" ${c.figma && DB.settings.figmaToken ? '' : 'disabled'}>Обновить фото из трафарета</button><span class="muted">Фото меняются только в Figma</span><span class="muted" id="cProg"></span></div>
   <div class="form">
-    <label>Название на витрине</label><div><input id="cName" maxlength="30" value="${h(c.name)}">${c.figma && c.figma.title ? `<div class="muted" style="margin-top:4px">В Figma: «${h(c.figma.title)}» ${c.nameManual ? '<button class="small" id="cNameBack">вернуть из Figma</button>' : ''}</div>` : ''}</div>
-    <label>Трафарет Figma</label><input id="cFigUrl" placeholder="ссылка на трафарет (node-id=…)" value="${c.figma ? h(`https://www.figma.com/design/${c.figma.key || figmaKey()}/?node-id=${c.figma.node.replace(':', '-')}`) : ''}">
-    <label>Ссылка 4Partners с цветом</label><input id="cLink" value="${h(c.link ? C.keyOf(c) : '')}" placeholder="https://store.4partners.io/ru/product/…#v…">
+    <label>Название на витрине</label><div><input id="cName" maxlength="30" value="${h(c.name)}">${c.figma && c.figma.title ? `<div class="muted" style="margin-top:4px">В Figma: «${h(c.figma.title)}» ${c.figma.title.slice(0, 30) !== c.name ? '<button class="small" id="cNameBack">вернуть из Figma</button>' : '✓'}</div>` : ''}</div>
+    <label>Трафарет Figma</label><input id="cFigUrl" readonly title="Меняется в Figma" placeholder="ссылка на трафарет (node-id=…)" value="${c.figma ? h(`https://www.figma.com/design/${c.figma.key || figmaKey()}/?node-id=${c.figma.node.replace(':', '-')}`) : ''}">
+    <label>Ссылка 4Partners с цветом</label><input id="cLink" readonly title="Меняется в трафарете Figma" value="${h(c.link ? C.keyOf(c) : '')}" placeholder="https://store.4partners.io/ru/product/…#v…">
     <label>Раздел</label><select id="cCat"><option value="1016" ${c.cat === '1016' ? 'selected' : ''}>Девушкам</option><option value="1015" ${c.cat === '1015' ? 'selected' : ''}>Парням</option></select>
     <label>Размеры</label><div><div class="sizes" id="cSizes">${sizesHtml()}</div><div class="acts" style="margin:8px 0 0"><button class="small" id="c4p" ${c.link ? '' : 'disabled'}>🔄 Сверить с 4Partners</button>${c.link ? `<a class="muted" href="${h(C.keyOf(c))}" target="_blank">открыть на 4Partners ↗</a>` : ''}</div><div id="c4pOut"></div></div>
     <label>ID в TgShop</label><div class="muted" style="padding-top:8px" id="cChecked">${checkedHtml()}</div>
   </div>
   <div class="acts"><button class="danger" id="cDel">Удалить карточку</button><span style="flex:1"></span><label class="muted"><input type="checkbox" id="cOn" ${c.enabled ? 'checked' : ''}> включена на витрине</label><button id="cClose">Закрыть</button><button class="primary" id="cSave">Сохранить</button></div>`, root => {
     let photos = [...c.photos];
-    const drawStrip = () => { root.querySelector('#strip').innerHTML = photos.map((p, i) => `<div class="th" draggable="true" data-i="${i}"><img src="${h(C.photoUrl(p))}" alt=""><button data-del="${i}">×</button></div>`).join('') || '<span class="muted">Фото нет</span>'; bindStrip(); };
-    const bindStrip = () => root.querySelectorAll('.th').forEach(th => {
-      th.querySelector('button').onclick = e => { e.stopPropagation(); photos.splice(+th.dataset.i, 1); drawStrip(); };
-      th.ondragstart = e => e.dataTransfer.setData('text/plain', th.dataset.i);
-      th.ondragover = e => e.preventDefault();
-      th.ondrop = e => { e.preventDefault(); const a = +e.dataTransfer.getData('text/plain'), b = +th.dataset.i; const [x] = photos.splice(a, 1); photos.splice(b, 0, x); drawStrip(); };
-    });
-    bindStrip();
+    const drawStrip = () => { root.querySelector('#strip').innerHTML = photos.map(p => `<div class="th" style="cursor:default"><img src="${h(C.photoUrl(p))}" alt=""></div>`).join('') || '<span class="muted">Фото нет — нажмите «Обновить фото из трафарета»</span>'; };
+    drawStrip();
     const bindSizes = () => root.querySelectorAll('.sz[data-sku]').forEach(el => el.onclick = () => { const s = c.sizes.find(x => x.sku === el.dataset.sku); s.enabled = s.enabled === false; el.classList.toggle('dis', s.enabled === false); });
     bindSizes();
     root.querySelector('#c4p').onclick = async () => {
@@ -160,11 +156,8 @@ function editCard(c) {
       busy = false; btn.disabled = false;
     };
     root.querySelector('#cClose').onclick = closeModal;
+    if (root.querySelector('#cPlace')) root.querySelector('#cPlace').onclick = async () => { C.placeLikeFigma(DB, c); log('Порядок', `«${c.name}» → как в Figma, место ${DB.order[c.cat].indexOf(c.id) + 1}`); await save(); closeModal(); renderGrid(); };
     if (root.querySelector('#cNameBack')) root.querySelector('#cNameBack').onclick = () => { root.querySelector('#cName').value = c.figma.title.slice(0, 30); c.nameManual = false; };
-    root.querySelector('#cFile').onchange = async e => {
-      if (!ghReady()) { prog('#cProg', 'Сначала подключите GitHub в настройках'); return; }
-      try { for (const f of e.target.files) { prog('#cProg', 'Загружаю ' + f.name + '…'); photos.push(await storePhoto(new Uint8Array(await f.arrayBuffer()), 'file')); } drawStrip(); prog('#cProg', 'Готово'); } catch (er) { prog('#cProg', er.message); }
-    };
     root.querySelector('#cFig').onclick = async () => { try { prog('#cProg', 'Рисую фото из Figma…'); photos = await photosFromFigma(c.figma); drawStrip(); prog('#cProg', `Готово: ${photos.length} фото`); } catch (er) { prog('#cProg', er.message); } };
     root.querySelector('#cDel').onclick = async () => { if (!confirm(`Удалить «${c.name}» из кабинета? При выгрузке товар уйдёт с витрины.`)) return; DB.cards = DB.cards.filter(x => x !== c); for (const k of ['1016', '1015']) DB.order[k] = DB.order[k].filter(x => x !== c.id); log('Витрина', `Удалена «${c.name}»`); await save(); closeModal(); render(); };
     root.querySelector('#cSave').onclick = async () => {
@@ -212,7 +205,7 @@ async function migrate() {
     prog('#mProg', 'Беру ссылки поставщика из каталога (разово)…');
     const { text } = await N.sheetCSV(DB.settings.sheetId, DB.settings.sheetGid);
     const r = C.migrate(C.parseCSV(text), cards);
-    DB.cards = r.cards; DB.order = r.order; DB.showcase = r.showcase;
+    DB.cards = r.cards; DB.order = r.order;
     if (r.markup && DB.settings.markupLines.length === 1 && DB.settings.markupLines[0].amount === 3150) DB.settings.markupLines = [{ label: 'Наценка (из каталога)', amount: r.markup }];
     log('Перенос', `Из TgShop: ${cards.length} товаров → ${DB.cards.length} карточек`); await save(); render();
     $('#mOut').innerHTML = `<div class="msg ok">Перенесено: девушкам ${DB.order['1016'].length}, парням ${DB.order['1015'].length} карточек; порядок — как сейчас на витрине.</div>${r.notes.length ? `<details open><summary>Обратите внимание — ${r.notes.length}</summary>${r.notes.map(h).join('<br>')}</details>` : ''}<p class="muted">Дальше: «Сверить с Figma» — карточки свяжутся с трафаретами.</p><div class="acts"><button class="primary" id="mOk">Готово</button></div>`;
@@ -226,52 +219,84 @@ $('#migrate').onclick = migrate;
 $('#bFigma').onclick = figmaSync;
 async function figmaSync() {
   if (busy) return; const st = DB.settings;
-  if (!st.figmaToken || !figmaKey() || !figmaRoot()) return alert('В настройках нужны токен Figma и ссылка на «Трафареты — коллекции»');
-  busy = true; modal('<h2>Сверка с Figma</h2><div class="progress" id="fProg">Читаю трафареты…</div><div id="fOut"></div>');
+  if (!st.figmaToken || !figmaKey() || !figmaRoot()) return alert('В настройках нужны токен Figma и ссылка на страницу «> Актуальная витрина»');
+  busy = true; modal('<h2>Сверка с Figma</h2><div class="progress" id="fProg">Ищу витрину в Figma…</div><div id="fOut"></div>');
+  const done = html => { prog('#fProg', ''); $('#fOut').innerHTML = html + '<div class="acts" id="fActs"><span style="flex:1"></span><button id="fOk">Закрыть</button></div>'; $('#fOk').onclick = closeModal; };
   try {
-    const doc = await N.figmaNode(st.figmaToken, figmaKey(), figmaRoot(), (a, n) => prog('#fProg', `Читаю трафареты: раздел ${a} из ${n}…`));
-    const trs = C.parseTrafarets(doc), m = C.matchTrafarets(DB, trs);
-    let renamed = 0, changed = 0;
-    for (const { card: c, tr } of m.linked) {
-      const prev = c.figma || {};
-      c.figma = { node: tr.node, key: figmaKey(), title: tr.title, photos: tr.photos, hash: tr.hash, syncedHash: prev.node === tr.node ? prev.syncedHash : undefined, section: tr.section };
-      c.figma.changed = c.figma.syncedHash !== tr.hash; if (c.figma.changed) changed++;
-      const t = tr.title.slice(0, 30); if (!c.nameManual && t && c.name !== t) { c.name = t; renamed++; }
+    const root = await N.figmaResolve(st.figmaToken, figmaKey(), figmaRoot());
+    const doc = await N.figmaNode(st.figmaToken, figmaKey(), root.id, (a, n) => prog('#fProg', `Читаю трафареты: раздел ${a} из ${n}…`));
+    const trs = C.parseTrafarets(doc);
+    if (!trs.length) { busy = false; return done(`<div class="msg bad">В «${h(root.name)}» не нашлось ни одного трафарета «Товар N». Кабинет ничего не менял.</div>`); }
+    const m = C.matchTrafarets(DB, trs);
+    // трафарет «в обе коллекции», у которого есть карточка только в одном разделе — дособрать вторую
+    const twins = [];
+    for (const t of trs.filter(t => t.cat === 'both')) { const have = m.linked.filter(x => x.tr === t).map(x => x.card.cat); for (const cat of ['1016', '1015']) if (have.length && !have.includes(cat)) twins.push({ t, cat }); }
+    const add = [...m.fresh.filter(t => t.link).flatMap(t => (t.cat === 'both' ? ['1016', '1015'] : [t.cat]).map(cat => ({ t, cat }))), ...twins];
+    const noLink = m.fresh.filter(t => !t.link), del = m.without;
+    // модель была в обеих коллекциях, а осталась в одной — частая ошибка при ручной сборке
+    const halfLost = del.filter(c => DB.cards.some(x => x !== c && x.cat !== c.cat && x.link === c.link && x.hv === c.hv && !del.includes(x)));
+    let renamed = 0, changed = 0, rebound = 0;
+    for (const { card: c, tr } of m.linked) { const t = tr.title.slice(0, 30); if (t && c.name !== t && !(c.figma && c.figma.title === tr.title)) renamed++; if (!c.figma || c.figma.syncedHash !== tr.hash || c.figma.node !== tr.node) changed++; if (tr.hv && c.hv !== tr.hv) rebound++; }
+    const left = cat => DB.order[cat].filter(id => !del.some(c => c.id === id)).length + add.filter(x => x.cat === cat).length;
+    const empty = ['1016', '1015'].filter(cat => DB.order[cat].length && !left(cat));
+    const season = DB.cards.length && del.length > DB.cards.length / 2;
+    const nm = c => `${h(c.name)} · ${C.catName(c.cat)}`;
+    let html = `<div class="msg info">Figma${root.page ? ` · «${h(root.page)}»` : ''}: трафаретов ${trs.length}. В кабинете ${DB.cards.length} карточек.</div>`;
+    if (season) html += `<div class="msg warn"><b>Похоже, это новая витрина ✨</b> Уходит ${del.length} из ${DB.cards.length} карточек. Новые встанут в порядке Figma.</div>`;
+    if (empty.length) html += `<div class="msg bad"><b>Внимание:</b> раздел ${empty.map(C.catName).join(' и ')} останется пустым. Если это не задумано — проверьте Figma.</div>`;
+    if (halfLost.length) html += `<div class="msg bad"><b>Дубль остался в одной коллекции:</b> ${halfLost.map(nm).join(', ')}. Если модель должна быть в обеих — положите копию трафарета во второй раздел Figma.</div>`;
+    html += `<table class="t"><tr><th>Что будет</th><th></th></tr><tr><td>➕ Добавятся</td><td class="n">${add.length}</td></tr><tr><td>➖ Удалятся (трафарета больше нет)</td><td class="n">${del.length}</td></tr><tr><td>🖼 Обновятся фото</td><td class="n">${changed}</td></tr><tr><td>✏️ Обновятся названия</td><td class="n">${renamed}</td></tr>${rebound ? `<tr><td>🔗 Сменился цвет/вариант 4Partners</td><td class="n">${rebound}</td></tr>` : ''}</table>`;
+    if (add.length) html += `<details ${add.length <= 15 ? 'open' : ''}><summary>➕ Добавятся — ${add.length}</summary>${add.map(x => `«${h(x.t.title)}» · ${C.catName(x.cat)}`).join('<br>')}</details>`;
+    if (del.length) html += `<details ${del.length <= 15 ? 'open' : ''}><summary>➖ Удалятся — ${del.length}</summary>${del.map(nm).join('<br>')}<div class="muted" style="margin-top:6px">При следующей выгрузке они уйдут и с витрины TgShop. Копия старой витрины — в архивной вкладке Figma.</div></details>`;
+    if (noLink.length) html += `<div class="msg bad">Не добавлю — в трафарете нет ссылки 4Partners: ${noLink.map(t => `«${h(t.title)}» (${h(t.section)})`).join(', ')}</div>`;
+    const nothing = !add.length && !del.length && !changed && !renamed && !rebound;
+    if (nothing) html += `<div class="msg ok">✅ Кабинет совпадает с Figma</div>`;
+    // порядок Figma запоминаем всегда — по нему кабинет отмечает «не как в Figma»
+    DB.figmaOrder = { '1016': trs.filter(t => t.cat === '1016' || t.cat === 'both').map(t => t.node), '1015': trs.filter(t => t.cat === '1015' || t.cat === 'both').map(t => t.node) };
+    done(html); DB.lastFigma = new Date().toISOString(); await save(); render();
+    if (!nothing) {
+      $('#fActs').insertAdjacentHTML('beforeend', `<button class="primary" id="fApply">Применить</button>`);
+      $('#fApply').onclick = async () => {
+        if ((del.length > 5 || empty.length || halfLost.length) && !confirm(`Удалить из кабинета ${del.length} карточек${empty.length ? ' (раздел ' + empty.map(C.catName).join(' и ') + ' станет пустым)' : ''}?`)) return;
+        $('#fApply').disabled = true;
+        const delIds = new Set(del.map(c => c.id));
+        DB.cards = DB.cards.filter(c => !delIds.has(c.id)); for (const k of ['1016', '1015']) DB.order[k] = DB.order[k].filter(id => !delIds.has(id));
+        for (const { card: c, tr } of m.linked) {
+          const prev = c.figma || {}, t = tr.title.slice(0, 30);
+          const keepName = prev.title === tr.title && c.name !== t;   // имя правили в кабинете, а в Figma оно не менялось — оставляем правку
+          c.figma = { node: tr.node, key: figmaKey(), title: tr.title, photos: tr.photos, hash: tr.hash, syncedHash: prev.node === tr.node ? prev.syncedHash : undefined, section: tr.section };
+          c.figma.changed = c.figma.syncedHash !== tr.hash;
+          if (tr.hv && c.hv !== tr.hv) { c.hv = tr.hv; delete c.status.error; }
+          if (t && !keepName) c.name = t;
+        }
+        const n = addFromTrafarets(add, trs);
+        if (season) for (const k of ['1016', '1015']) C.sortLikeFigma(DB, k);
+        log('Figma', `Применено: +${n}, −${del.length}, фото ${changed}, названий ${renamed}`); await save(); render();
+        const ph = DB.cards.filter(c => c.figma && c.figma.changed);
+        $('#fOut').insertAdjacentHTML('afterbegin', `<div class="msg ok"><b>Готово ✅</b> Добавлено ${n}, удалено ${del.length}.${n ? ' Дальше «Обновить цены и остатки» — у новых карточек появятся размеры и цены, потом «Выгрузить на витрину».' : ' Дальше — «Выгрузить на витрину».'}</div>`);
+        if (ph.length && ghReady()) { busy = false; await syncPhotos(ph, '#fProg'); }
+        else if (ph.length) prog('#fProg', 'Чтобы загрузились фото, подключите GitHub в настройках.');
+      };
     }
-    DB.lastFigma = new Date().toISOString(); await save(); render();
-    let html = `<div class="msg ok">Трафаретов: ${trs.length}; связано с карточками: ${m.linked.length}; названий обновлено: ${renamed}; фото к обновлению: ${changed}.</div>`;
-    if (m.fresh.length) html += `<div class="msg warn"><b>Новые трафареты без карточки — ${m.fresh.length}:</b><br>${m.fresh.map(t => `${h(t.section)}: «${h(t.title)}»${t.link ? '' : ' (нет ссылки 4Partners!)'}`).join('<br>')}<div class="acts"><button class="primary" id="fAdd">Добавить как новые карточки рядом с соседями</button></div></div>`;
-    const without = m.without.filter(c => c.enabled);
-    if (without.length) html += `<details><summary>Карточки без трафарета — ${without.length}</summary>${without.map(c => h(c.name) + ' · ' + C.catName(c.cat)).join('<br>')}</details>`;
-    if (changed && ghReady()) html += `<div class="acts"><button class="primary" id="fPh">Обновить фото из Figma (${changed})</button></div>`;
-    else if (changed) html += `<div class="msg info">Чтобы фото обновлялись сами, подключите GitHub в настройках.</div>`;
-    html += `<div class="acts"><button id="fOk">Закрыть</button></div>`;
-    prog('#fProg', ''); $('#fOut').innerHTML = html; $('#fOk').onclick = closeModal;
-    if ($('#fAdd')) $('#fAdd').onclick = async () => { const n = addFromTrafarets(m.fresh, trs); await save(); render(); $('#fAdd').disabled = true; $('#fAdd').textContent = `Добавлено ${n}. Обновите цены, чтобы появились размеры.`; };
-    if ($('#fPh')) $('#fPh').onclick = () => { $('#fPh').disabled = true; syncPhotos(DB.cards.filter(c => c.figma && c.figma.changed), '#fProg'); };
-    log('Figma', `Сверка: ${m.linked.length} связано, ${m.fresh.length} новых, ${changed} фото изменилось`);
-    if (changed && ghReady()) { if ($('#fPh')) $('#fPh').disabled = true; busy = false; await syncPhotos(DB.cards.filter(c => c.figma && c.figma.changed), '#fProg'); }
-  } catch (e) { prog('#fProg', ''); $('#fOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="fOk">Закрыть</button></div>`; $('#fOk').onclick = closeModal; }
+  } catch (e) { done(`<div class="msg bad">${h(e.message)}</div>`); }
   busy = false;
 }
-function addFromTrafarets(fresh, trs) {
+function addFromTrafarets(list, trs) {
   const ids = C.idState(DB); let n = 0;
-  for (const t of fresh) {
-    if (!t.link) continue;
-    const cats = t.cat === 'both' ? ['1016', '1015'] : [t.cat];
-    for (const cat of cats) {
-      const c = C.newCard({ cat, group: C.allocGroup(ids, cat), name: t.title.slice(0, 30), link: t.link, hv: t.hv });
-      c.figma = { node: t.node, key: figmaKey(), title: t.title, photos: t.photos, hash: t.hash, changed: true, section: t.section };
-      // место — после соседа слева в том же разделе Figma
-      const sec = trs.filter(x => x.section === t.section && x.index < t.index).reverse();
-      let at = DB.order[cat].length;
-      for (const p of sec) { const nb = DB.cards.find(x => x.cat === cat && x.figma && x.figma.node === p.node); if (nb) { at = DB.order[cat].indexOf(nb.id) + 1; break; } }
-      DB.cards.push(c); DB.order[cat].splice(at, 0, c.id); n++;
-      log('Витрина', `Новая карточка из Figma «${c.name}» → ${C.catName(cat)}, место ${at + 1}`);
-    }
+  for (const { t, cat } of list) {
+    if (DB.cards.some(c => c.cat === cat && c.figma && c.figma.node === t.node)) continue;
+    const c = C.newCard({ cat, group: C.allocGroup(ids, cat), name: t.title.slice(0, 30), link: t.link, hv: t.hv });
+    c.figma = { node: t.node, key: figmaKey(), title: t.title, photos: t.photos, hash: t.hash, changed: true, section: t.section };
+    DB.cards.push(c); DB.order[cat].push(c.id); C.placeLikeFigma(DB, c); n++;
   }
   return n;
 }
+$('#bSortFig').onclick = async () => {
+  if (!DB.figmaOrder) return alert('Сначала «Сверить с Figma» — кабинет запомнит порядок трафаретов');
+  const n = C.movedCards(DB, CAT).size; if (!n) return alert('Раздел уже стоит как в Figma ✅');
+  if (!confirm(`Расставить раздел «${C.catName(CAT)}» как в Figma? Переставленных вручную: ${n}.`)) return;
+  C.sortLikeFigma(DB, CAT); log('Порядок', `${C.catName(CAT)}: расставлен как в Figma`); await save(); renderGrid();
+};
 async function syncPhotos(list, progSel) {
   if (syncPhotos.running) { prog(progSel, 'Загрузка фото уже идёт — дождитесь окончания'); return; }
   syncPhotos.running = true; const was = busy; busy = true;
@@ -303,7 +328,7 @@ $('#photosDrive').onclick = async () => {
 };
 
 // ---------- добавить по ссылкам 4Partners ----------
-$('#bAdd').onclick = () => modal(`<h2>Добавить карточки по ссылкам 4Partners</h2><p class="muted">По одной ссылке в строке, с выбранным цветом (#v… в конце). Карточки встанут в конец витрины в порядке списка; раздел определится по размерам: до 40 — девушкам, от 40 — парням, оба диапазона — две карточки.</p><textarea id="aL" rows="8"></textarea><div class="progress" id="aProg"></div><div class="acts"><button id="aCancel">Отмена</button><button class="primary" id="aGo">Добавить</button></div>`, root => {
+if ($('#bAdd')) $('#bAdd').onclick = () => modal(`<h2>Добавить карточки по ссылкам 4Partners</h2><p class="muted">По одной ссылке в строке, с выбранным цветом (#v… в конце). Карточки встанут в конец витрины в порядке списка; раздел определится по размерам: до 40 — девушкам, от 40 — парням, оба диапазона — две карточки.</p><textarea id="aL" rows="8"></textarea><div class="progress" id="aProg"></div><div class="acts"><button id="aCancel">Отмена</button><button class="primary" id="aGo">Добавить</button></div>`, root => {
   root.querySelector('#aCancel').onclick = closeModal;
   root.querySelector('#aGo').onclick = async () => {
     const links = root.querySelector('#aL').value.split(/\s+/).map(C.splitLink).filter(x => /4partners/.test(x.link) && x.hv);
@@ -331,11 +356,8 @@ $('#bAdd').onclick = () => modal(`<h2>Добавить карточки по с�
 $('#bUpdate').onclick = runUpdate;
 async function runUpdate(auto) {
   if (busy) return null; if (!DB.cards.length) return auto ? null : migrate(); let res = null;
-  busy = true; modal('<h2>Обновление цен и остатков</h2><div class="progress" id="uProg">Спрашиваю у TgShop, что сейчас на витрине…</div><div id="uOut"></div>');
+  busy = true; modal('<h2>Обновление цен и остатков</h2><div class="progress" id="uProg">Снимаю цены и наличие у 4Partners…</div><div id="uOut"></div>');
   try {
-    const { cards: tgc } = await N.tgShowcase(DB.settings.shopId, (a, b) => prog('#uProg', `Читаю витрину TgShop: ${a} из ${b}…`));
-    DB.showcase = tgc.flatMap(c => c.skus.map(s => s.externalId));
-    const known = new Set(DB.cards.map(c => c.group)), stray = tgc.filter(c => !known.has(c.externalId));
     const list = DB.cards.filter(c => c.link), links = [...new Set(list.map(c => c.link))];
     const data = await N.fetch4P(links, (a, b) => prog('#uProg', `Снимаю цены и наличие у 4Partners: ${a} из ${b}…`));
     if (links.filter(l => data[l] && data[l].vs && data[l].vs.some(v => v.price)).length < links.length * 0.5) throw new Error('У большинства товаров нет цен — войдите на store.4partners.io и повторите');
@@ -353,7 +375,7 @@ async function runUpdate(auto) {
       if (r.soldOut) R.soldOut.push(c.name); if (r.back) R.back.push(c.name);
     }
     const after = { live: DB.cards.reduce((a, c) => a + C.liveSizes(c).length, 0), sold: DB.cards.filter(c => c.status.soldOutSince).length };
-    DB.lastUpdate = new Date().toISOString(); DB.lastReport = { at: DB.lastUpdate, before, after, R, stray: stray.map(c => c.externalId) };
+    DB.lastUpdate = new Date().toISOString(); DB.lastReport = { at: DB.lastUpdate, before, after, R };
     const pr = R.changes.filter(c => c.oSt && c.nSt && c.oJ !== c.nJ);
     log('Цены', `Цен изменилось ${pr.length}, закончилось ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось ${R.changes.filter(c => !c.oSt && c.nSt).length}, новых размеров ${R.added.length}, ошибок ${R.errors.length}`);
     await save(); render(); prog('#uProg', ''); showReport(DB.lastReport, true);
@@ -399,24 +421,34 @@ function showReport(rep, fresh) {
 function download(bytes, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' })); a.download = name.replace(/[\\/:*?"<>|]/g, '-'); document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
 
 // ---------- выгрузка ----------
+// Сравнение файла с прошлой выгрузкой из кабинета (TgShop — следствие, его не спрашиваем)
+function snapOf(rows) { const groups = {}, skus = {}; for (const r of rows) { groups[r[1]] = r[3]; skus[r[2]] = [+r[4], +r[10]]; } return { groups, skus }; }
+function diffLast(rows, snap) {
+  const d = { known: !!snap, addGroups: new Set(), delGroups: new Set(), price: 0, stock0: 0, stock5: 0, addSku: 0, delSku: 0 }; if (!snap) return d;
+  const now = snapOf(rows);
+  for (const g in now.groups) if (!(g in snap.groups)) d.addGroups.add(g);
+  for (const g in snap.groups) if (!(g in now.groups)) d.delGroups.add(g);
+  for (const k in now.skus) { const o = snap.skus[k], n = now.skus[k]; if (!o) { d.addSku++; continue; } if (o[0] !== n[0]) d.price++; if (o[1] !== n[1]) n[1] ? d.stock5++ : d.stock0++; }
+  for (const k in snap.skus) if (!(k in now.skus)) d.delSku++;
+  return d;
+}
 $('#bExport').onclick = openExport;
 function fileBytes(rows) { return writeXlsx([{ name: 'Категории', rows: [['ID подкатегории', 'ID корневой', 'Название категории'], [1015, '', 'парням'], [1016, '', 'девушкам']] }, { name: 'Товары', rows: [C.HEADER, ...rows.map(r => r.map((v, i) => i === 0 ? +v : v))] }]); }
 async function openExport(auto) {
   if (busy) return null; busy = true; let plan = null;
-  modal('<h2>Выгрузка на витрину</h2><div class="progress" id="xProg">Собираю файл и сравниваю с текущей витриной…</div><div id="xOut"></div>');
+  modal('<h2>Выгрузка на витрину</h2><div class="progress" id="xProg">Собираю файл…</div><div id="xOut"></div>');
   try {
     const b = C.buildRows(DB), errs = C.validate(b.rows); const I = b.info;
     if (I.noLink.length) errs.unshift('нет ссылки 4Partners у включённых карточек: ' + I.noLink.join(', '));
-    const { items, cards: tgc } = await N.tgShowcase(DB.settings.shopId, (a, n) => prog('#xProg', `Читаю текущую витрину: ${a} из ${n}…`));
-    DB.showcase = tgc.flatMap(c => c.skus.map(s => s.externalId));
-    const b2 = C.buildRows(DB); b.rows = b2.rows; b.groups = b2.groups; // с актуальным списком «что на витрине»
-    const d = C.diffShowcase(b.rows, tgc), tgName = g => { const c = tgc.find(x => x.externalId === g); return c && c.skus[0] ? c.skus[0].name : g; };
-    const warn = []; const L = DB.lastExport;
+    const L = DB.lastExport, d = diffLast(b.rows, L && L.snap), items = null;
+    const warn = [];
     if (L && b.rows.length < L.rows * (1 - DB.settings.dropThreshold / 100)) warn.push(`строк ${b.rows.length} — на ${DB.settings.dropThreshold}%+ меньше прошлой выгрузки (${L.rows})`);
-    if (d.delGroups.size > 5) warn.push(`с витрины уйдёт ${d.delGroups.size} товаров`);
+    if (auto && d.known && d.delGroups.size > 5) warn.push(`с витрины уйдёт ${d.delGroups.size} товаров — проверьте сверку с Figma`);
     let html = `<div class="msg ${errs.length ? 'bad' : 'ok'}">В файле ${b.rows.length} строк (${b.rows.filter(r => r[10] === 5).length} в продаже, ${b.rows.filter(r => r[10] === 0).length} с остатком 0), товаров ${b.groups}.</div>`;
-    html += `<table class="t"><tr><th>Что изменится на витрине</th><th></th></tr><tr><td>Новые товары</td><td class="n">${d.addGroups.size}</td></tr><tr><td>Уйдут с витрины</td><td class="n">${d.delGroups.size}</td></tr><tr><td>Новых размеров / убранных</td><td class="n">${d.addSku} / ${d.delSku}</td></tr><tr><td>Цена изменится</td><td class="n">${d.price.length}</td></tr><tr><td>Остаток станет 0 / станет 5</td><td class="n">${d.stock0} / ${d.stock5}</td></tr><tr><td>Порядок изменится</td><td class="n">${d.prio} SKU</td></tr><tr><td>Число фото изменится</td><td class="n">${d.photos} SKU</td></tr></table>`;
-    if (d.delGroups.size) html += `<details ${d.delGroups.size <= 10 ? 'open' : ''}><summary>Уйдут с витрины — ${d.delGroups.size}</summary>${[...d.delGroups].map(g => h(tgName(g))).join('<br>')}</details>`;
+    if (d.known) {
+      html += `<table class="t"><tr><th>С прошлой выгрузки (${dstr(L.at)})</th><th></th></tr><tr><td>Новые товары</td><td class="n">${d.addGroups.size}</td></tr><tr><td>Уйдут с витрины</td><td class="n">${d.delGroups.size}</td></tr><tr><td>Цена изменится</td><td class="n">${d.price} SKU</td></tr><tr><td>Остаток станет 0 / станет 5</td><td class="n">${d.stock0} / ${d.stock5}</td></tr><tr><td>Новых размеров / убранных</td><td class="n">${d.addSku} / ${d.delSku}</td></tr></table>`;
+      if (d.delGroups.size) html += `<details ${d.delGroups.size <= 10 ? 'open' : ''}><summary>Уйдут с витрины — ${d.delGroups.size}</summary>${[...d.delGroups].map(g => h(L.snap.groups[g] || g)).join('<br>')}</details>`;
+    } else html += `<div class="msg info">Это первая выгрузка из кабинета 3.2 — сравнивать пока не с чем.</div>`;
     if (errs.length) html += `<div class="msg bad"><b>Загрузка невозможна:</b><br>${errs.slice(0, 30).map(h).join('<br>')}</div>`;
     if (warn.length) html += `<div class="msg warn">${warn.map(h).join('<br>')}</div>`;
     if (I.sold.length) html += `<div class="msg info">Распроданные, с остатком 0: ${I.sold.map(h).join(', ')}</div>`;
@@ -451,10 +483,9 @@ async function upload(b, items, auto) {
     const okHash = C.hashKeys(keys) === C.hashKeys(b.rows.map(C.rowKey)), okGroups = items.length === b.groups;
     const noimg = cards.reduce((a, c) => a + c.skus.filter(s => !(s.images || []).length).length, 0);
     const cdn = await N.checkImages([...new Set(cards.flatMap(c => c.skus.flatMap(s => (s.images || []).map(i => i.url + '?previewSize=240'))))], (a, n) => prog('#xProg', `Проверяю фото на витрине: ${a} из ${n}…`));
-    DB.showcase = cards.flatMap(c => c.skus.map(s => s.externalId));
     const ok = okHash && okGroups && !noimg && !cdn.bad.length;
     say(ok ? 'ok' : 'bad', `${ok ? '<b>Витрина совпадает с файлом.</b>' : '<b>Есть расхождения.</b>'} Товаров ${items.length} (в файле ${b.groups}), SKU ${keys.length} (в файле ${b.rows.length}), контрольная сумма ${okHash ? 'совпала' : 'не совпала'}, без фото ${noimg}, фото открываются ${cdn.ok}${cdn.bad.length ? ', не открываются ' + cdn.bad.length : ''}.`);
-    if (ok) DB.lastExport = { at: new Date().toISOString(), rows: b.rows.length, groups: b.groups, name };
+    if (ok) DB.lastExport = { at: new Date().toISOString(), rows: b.rows.length, groups: b.groups, name, snap: snapOf(b.rows) };
     log('Выгрузка', `${b.rows.length} строк, ${b.groups} товаров, сверка ${ok ? 'OK' : 'с расхождениями'}`); await save(); render();
     notify(ok ? `✅ ${auto ? 'Автовыгрузка: в' : 'В'}итрина выгружена и сошлась с кабинетом\n${b.groups} товаров, ${b.rows.length} SKU` : `⚠️ Витрина выгружена, но есть расхождения — откройте кабинет\n${b.groups} товаров, ${b.rows.length} SKU`);
     prog('#xProg', 'Порядок на самой витрине проверьте в Telegram, кнопка «Каталог».'); done = ok;
@@ -483,7 +514,7 @@ function renderLog() { $('#logList').innerHTML = DB.history.length ? `<table cla
 
 // ---------- настройки ----------
 const FIELDS = [['§', 'TgShop'], ['shopId', 'ID магазина'], ['dropThreshold', 'Стоп, если строк меньше прошлой выгрузки на, %', 'number'],
-  ['§', 'Figma'], ['figmaToken', 'Личный токен Figma', 'password'], ['figmaUrl', 'Ссылка на «Трафареты — коллекции»'],
+  ['§', 'Figma'], ['figmaToken', 'Личный токен Figma', 'password'], ['figmaUrl', 'Ссылка на страницу Figma «> Актуальная витрина»'],
   ['§', 'GitHub (фото и резервная копия)'], ['ghToken', 'Токен GitHub', 'password'], ['ghPhotos', 'Репозиторий для фото (владелец/имя, публичный)'], ['ghBackup', 'Репозиторий для копии (владелец/имя, приватный)'], ['ghBranch', 'Ветка'],
   ['§', 'Telegram'], ['tgBot', 'Токен своего бота (@BotFather)', 'password'], ['tgChat', 'Ваш chat id'],
   ['§', 'Автоматизация'], ['autoOn', 'Обновлять цены и остатки сам', 'check'], ['autoTimes', 'Во сколько (через запятую, время ноутбука)'], ['autoMode', 'После обновления', 'select', [['update', 'только обновить и прислать итог — выгружу сам'], ['export', 'сразу выгрузить на витрину, если проверки чистые']]],

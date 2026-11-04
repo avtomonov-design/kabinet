@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><title>Кабинет витрины</title><link rel="stylesheet" href="app.css?v=3.1.3">
+<head><meta charset="utf-8"><title>Кабинет витрины</title><link rel="stylesheet" href="app.css?v=3.2.0">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"></head>
 <body>
@@ -28,8 +28,8 @@
     <div class="status" id="status"></div>
     <div class="bar">
       <input id="q" placeholder="Поиск по названию или ID">
-      <select id="flt"><option value="">Все карточки</option><option value="live">В продаже</option><option value="warn">С подсказками</option><option value="sold">Распроданные</option><option value="off">Выключенные</option><option value="nofig">Без трафарета</option></select>
-      <button id="bAdd">+ По ссылкам 4Partners</button>
+      <select id="flt"><option value="">Все карточки</option><option value="live">В продаже</option><option value="warn">С подсказками</option><option value="sold">Распроданные</option><option value="off">Выключенные</option><option value="moved">Не как в Figma</option></select>
+      <button id="bSortFig">Расставить как в Figma</button>
     </div>
     <div id="empty" class="hidden"></div>
     <div class="grid" id="grid"></div>
@@ -75,9 +75,9 @@
   </section>
 </main>
 <dialog id="dlg"><div id="dlgBody"></div></dialog>
-<script src="lib/xlsxwriter.js?v=3.1.3"></script>
-<script src="core.js?v=3.1.3"></script>
-<script src="net.js?v=3.1.3"></script>
-<script src="app.js?v=3.1.3"></script>
+<script src="lib/xlsxwriter.js?v=3.2.0"></script>
+<script src="core.js?v=3.2.0"></script>
+<script src="net.js?v=3.2.0"></script>
+<script src="app.js?v=3.2.0"></script>
 </body>
 </html>

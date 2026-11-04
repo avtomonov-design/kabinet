@@ -45,8 +45,9 @@
     if (an.size) h.push(['warn', 'аномальная цена: ' + an.size]);
     if (!c.photos.length) h.push(['bad', 'нет фото']);
     if (c.figma && c.figma.changed) h.push(['warn', 'фото в Figma изменилось']);
-    if (c.figma && c.figma.title && c.nameManual && c.figma.title !== c.name) h.push(['info', 'в Figma: ' + c.figma.title]);
-    if (!c.figma) h.push(['info', 'нет трафарета']);
+    if (c.figma && c.figma.title && c.figma.title.slice(0, 30) !== c.name) h.push(['info', 'название не как в Figma: ' + c.figma.title]);
+    if (!c.figma) h.push(['bad', 'нет трафарета — уйдёт при сверке с Figma']);
+    if (db._moved && db._moved.has(c.id)) h.push(['info', '↕ не как в Figma: там ' + db._moved.get(c.id) + '-я']);
     if (!c.sizes.length) h.push(['info', 'ждёт обновления цен']);
     return h;
   }
@@ -143,7 +144,7 @@
   const HEADER = ['ID категории', 'ID группы', 'ID товара', 'Название товара', 'Цена продажи', 'Изображения', 'Артикул', 'Старая цена', 'Полное описание', 'Краткое описание', 'Остаток', 'Варианты товара', 'Характеристики', 'Приоритет', 'Габариты (Ш/Г/В) (см) ', 'Вес (кг)', 'Размерная сетка'];
   const markupOf = st => (st.markupLines || []).reduce((a, l) => a + (+l.amount || 0), 0);
   function buildRows(db) {
-    const st = db.settings, P = markupOf(st), sc = new Set(db.showcase || []);
+    const st = db.settings, P = markupOf(st);
     const rows = [], info = { anomalies: [], sold: [], off: [], offSizes: 0, noPhoto: [], noLink: [] };
     for (const cat of [W, M]) {
       db.order[cat].forEach((id, i) => {
@@ -157,7 +158,8 @@
         let put = 0; const used = new Set();
         info.offSizes += c.sizes.filter(s => s.enabled === false).length;
         for (const s of liveSizes(c)) { if (an.has(s.sku)) { info.anomalies.push(`${c.name} ${s.sz} — ${s.J + P} ₽`); continue; } rows.push(mk(s, 5)); used.add(s.sku); put++; }
-        if (!put) { const z = c.sizes.filter(s => sc.has(s.sku) && s.J && s.enabled !== false); z.forEach(s => rows.push(mk(s, 0))); if (z.length) info.sold.push(c.name); }
+        // распродана: остаётся на витрине с остатком 0 по всем размерам, у которых известна последняя цена
+        if (!put) { const z = c.sizes.filter(s => s.J && s.enabled !== false && !an.has(s.sku)); z.forEach(s => rows.push(mk(s, 0))); if (z.length) info.sold.push(c.name); }
       });
     }
     return { rows, info, groups: new Set(rows.map(r => r[1])).size };
@@ -232,6 +234,34 @@
     return { linked, fresh, without: db.cards.filter(c => !got.has(c.id)) };
   }
 
+  // ---------- порядок как в Figma ----------
+  // Место карточки в Figma = её номер среди трафаретов своего раздела (сверху вниз).
+  // «Не как в Figma» — минимальный набор переставленных карточек (вне наибольшей возрастающей подпоследовательности).
+  function figmaRank(db, cat) { const r = new Map(); (db.figmaOrder && db.figmaOrder[cat] || []).forEach((n, i) => r.set(n, i)); return r; }
+  function movedCards(db, cat) {
+    const rank = figmaRank(db, cat), seq = db.order[cat].map(id => db.cards.find(c => c.id === id)).filter(c => c && c.figma && rank.has(c.figma.node));
+    const a = seq.map(c => rank.get(c.figma.node)), n = a.length, len = new Array(n).fill(1), prev = new Array(n).fill(-1);
+    for (let i = 0; i < n; i++) for (let j = 0; j < i; j++) if (a[j] < a[i] && len[j] + 1 > len[i]) { len[i] = len[j] + 1; prev[i] = j; }
+    let best = -1; for (let i = 0; i < n; i++) if (best < 0 || len[i] > len[best]) best = i;
+    const keep = new Set(); for (let i = best; i >= 0; i = prev[i]) keep.add(i);
+    const out = new Map(); seq.forEach((c, i) => { if (!keep.has(i)) out.set(c.id, rank.get(c.figma.node) + 1); });
+    return out;
+  }
+  // Вернуть одну карточку на место: перед первой карточкой, которая в Figma стоит ниже неё
+  function placeLikeFigma(db, c) {
+    const rank = figmaRank(db, c.cat), my = c.figma && rank.get(c.figma.node); if (my == null) return false;
+    const o = db.order[c.cat]; o.splice(o.indexOf(c.id), 1);
+    const moved = movedCards(db, c.cat);
+    let at = o.findIndex(id => { const x = db.cards.find(k => k.id === id); return x && x.figma && rank.has(x.figma.node) && !moved.has(x.id) && rank.get(x.figma.node) > my; });
+    if (at < 0) { at = o.length; for (let i = o.length - 1; i >= 0; i--) { const x = db.cards.find(k => k.id === o[i]); if (x && x.figma && rank.has(x.figma.node)) { at = i + 1; break; } } }
+    o.splice(at, 0, c.id); return true;
+  }
+  function sortLikeFigma(db, cat) {
+    const rank = figmaRank(db, cat), o = db.order[cat], get = id => db.cards.find(k => k.id === id);
+    const inF = o.filter(id => { const x = get(id); return x && x.figma && rank.has(x.figma.node); }).sort((p, q) => rank.get(get(p).figma.node) - rank.get(get(q).figma.node));
+    db.order[cat] = [...inF, ...o.filter(id => !inF.includes(id))];
+  }
+
   // ---------- задание сотруднику ----------
   function staffTask(db) {
     const P = markupOf(db.settings), sold = db.cards.filter(c => c.enabled && c.status.soldOutSince);
@@ -245,6 +275,6 @@
     return L.join('\n');
   }
 
-  const api = { W, M, catName, HEADER, parseCSV, splitLink, pidOf, keyOf, driveId, photoUrl, figmaNodeFromUrl, figmaKeyFromUrl, newCard, liveSizes, anomalies, hasTwin, hints, priceRange, idState, allocSku, allocGroup, matrixLines, migrate, sizeOf, colOf, updateCard, genderOf, markupOf, buildRows, validate, hashKeys, rowKey, diffShowcase, parseTrafarets, matchTrafarets, staffTask, strHash, uid, today, num };
+  const api = { W, M, catName, HEADER, parseCSV, splitLink, pidOf, keyOf, driveId, photoUrl, figmaNodeFromUrl, figmaKeyFromUrl, newCard, liveSizes, anomalies, hasTwin, hints, priceRange, idState, allocSku, allocGroup, matrixLines, migrate, sizeOf, colOf, updateCard, genderOf, markupOf, buildRows, validate, hashKeys, rowKey, diffShowcase, parseTrafarets, matchTrafarets, staffTask, movedCards, placeLikeFigma, sortLikeFigma, figmaRank, strHash, uid, today, num };
   root.Core = api; if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

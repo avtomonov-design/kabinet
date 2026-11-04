@@ -89,9 +89,13 @@
     const j = await figmaGet(token, `files/${key}/nodes?ids=${encodeURIComponent(node)}&depth=1`);
     const doc = j.nodes[node] && j.nodes[node].document; if (!doc) throw new Error('В Figma не найден узел ' + node + ' — проверьте ссылку в настройках');
     if (doc.type !== 'CANVAS') return { id: node, name: doc.name };
-    const fr = (doc.children || []).filter(c => /трафарет/i.test(c.name));
-    if (!fr.length) throw new Error(`На странице Figma «${doc.name}» нет фрейма «Трафареты — коллекции». Если вы пересобираете витрину — положите новый фрейм с этим названием на эту страницу.`);
-    if (fr.length > 1) throw new Error(`На странице «${doc.name}» несколько фреймов «Трафареты…» (${fr.length}). Оставьте один — старый унесите в архивную вкладку.`);
+    // фрейм витрины на странице — тот, в котором есть разделы «Девушкам · 1016» / «Парням · 1015»
+    const top = (doc.children || []).filter(c => c.type === 'FRAME' || c.type === 'SECTION');
+    const pick = [];
+    for (const f of top) { const k = await figmaGet(token, `files/${key}/nodes?ids=${encodeURIComponent(f.id)}&depth=1`); const d = k.nodes[f.id].document; if ((d.children || []).some(s => /1016|1015|девушк|парн/i.test(s.name))) pick.push(f); }
+    if (!pick.length) throw new Error(`На странице Figma «${doc.name}» нет фрейма витрины с разделами «Девушкам · 1016» и «Парням · 1015». Если вы пересобираете витрину — положите его на эту страницу.`);
+    if (pick.length > 1) throw new Error(`На странице «${doc.name}» несколько фреймов витрины (${pick.map(f => '«' + f.name + '»').join(', ')}). Оставьте один — старый унесите в архивную вкладку.`);
+    const fr = pick;
     return { id: fr[0].id, name: fr[0].name, page: doc.name };
   }
   // Рендер фото пачками с паузами; onProgress(готово, всего)
