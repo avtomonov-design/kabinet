@@ -1,4 +1,4 @@
-const APP_VERSION = '3.2.1';
+const APP_VERSION = '3.2.2';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -384,12 +384,10 @@ async function runUpdate(auto) {
     if (R.soldOut.length) t.push(`🔴 Распродались целиком: ${R.soldOut.join(', ')} — пора менять (задание в «Распроданных»)`);
     if (R.back.length) t.push(`🟢 Вернулись в продажу: ${R.back.join(', ')}`);
     if (R.errors.length) t.push(`⚠️ Не обновились: ${R.errors.length} (данные не тронуты)`);
-    if (!auto) t.push('Чтобы изменения попали на витрину, нажмите «Выгрузить на витрину»');
-    else if (DB.settings.autoMode !== 'export') t.push('⏸ Витрину не выгружал: в настройках «только обновить». Нажмите «Выгрузить на витрину» или включите автовыгрузку');
-    else t.push('🚀 Сейчас выгружу на витрину…');
-    notify(t.join('\n'));
-    res = { R, pr };
-  } catch (e) { prog('#uProg', ''); $('#uOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="uOk">Закрыть</button></div>`; $('#uOk').onclick = closeModal; if (auto) notify(`❌ Автообновление не прошло: ${e.message}`); }
+    // итог по TgShop добавляется последней строкой; при автовыгрузке сообщение уходит после неё — одним письмом
+    if (auto && DB.settings.autoMode === 'export') res = { R, pr, text: t };
+    else { t.push(auto ? '\n📦 TgShop: витрина НЕ выгружена ⏸ (в настройках «только обновить»)' : '\n📦 TgShop: витрина НЕ выгружена — нажмите «Выгрузить на витрину»'); notify(t.join('\n')); res = { R, pr }; }
+  } catch (e) { prog('#uProg', ''); $('#uOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="uOk">Закрыть</button></div>`; $('#uOk').onclick = closeModal; if (auto) notify(`❌ Автообновление не прошло: ${e.message}\n\n📦 TgShop: витрина НЕ выгружена`); }
   busy = false; return res;
 }
 function showReport(rep, fresh) {
@@ -489,9 +487,10 @@ async function upload(b, items, auto) {
     say(ok ? 'ok' : 'bad', `${ok ? '<b>Витрина совпадает с файлом.</b>' : '<b>Есть расхождения.</b>'} Товаров ${items.length} (в файле ${b.groups}), SKU ${keys.length} (в файле ${b.rows.length}), контрольная сумма ${okHash ? 'совпала' : 'не совпала'}, без фото ${noimg}, фото открываются ${cdn.ok}${cdn.bad.length ? ', не открываются ' + cdn.bad.length : ''}.`);
     if (ok) DB.lastExport = { at: new Date().toISOString(), rows: b.rows.length, groups: b.groups, name, snap: snapOf(b.rows) };
     log('Выгрузка', `${b.rows.length} строк, ${b.groups} товаров, сверка ${ok ? 'OK' : 'с расхождениями'}`); await save(); render();
-    notify(ok ? `✅ ${auto ? 'Автовыгрузка: в' : 'В'}итрина выгружена и сошлась с кабинетом\n${b.groups} товаров, ${b.rows.length} SKU` : `⚠️ Витрина выгружена, но есть расхождения — откройте кабинет\n${b.groups} товаров, ${b.rows.length} SKU`);
-    prog('#xProg', 'Порядок на самой витрине проверьте в Telegram, кнопка «Каталог».'); done = ok;
-  } catch (e) { prog('#xProg', ''); say('bad', h(e.message).replace(/&lt;br&gt;/g, '<br>')); notify(`❌ Выгрузка не прошла: ${e.message.replace(/<br>/g, ' ')}`); }
+    const msg = ok ? `📦 TgShop: витрина выгружена ✅ и сошлась с кабинетом (${b.groups} товаров, ${b.rows.length} SKU)` : `📦 TgShop: витрина выгружена, но есть расхождения ⚠️ — откройте кабинет (${b.groups} товаров, ${b.rows.length} SKU)`;
+    if (auto) done = msg; else notify(msg);
+    prog('#xProg', 'Порядок на самой витрине проверьте в Telegram, кнопка «Каталог».'); if (!auto) done = ok;
+  } catch (e) { prog('#xProg', ''); say('bad', h(e.message).replace(/&lt;br&gt;/g, '<br>')); const msg = `📦 TgShop: витрина НЕ выгружена ❌ — ${e.message.replace(/<br>/g, ' ')}`; if (auto) done = msg; else notify(msg); }
   busy = false; return done;
 }
 
@@ -591,8 +590,10 @@ async function autoCheck() {
     if (r && DB.settings.autoMode === 'export') {
       const plan = await openExport(true);
       const why = plan.fail ? [plan.fail] : [...plan.errs, ...plan.warn]; if (r.R.errors.length) why.push(`не обновились ${r.R.errors.length} карточек`);
-      if (why.length) { notify(`⏸ Выгрузку не делал — нужна ваша проверка:\n${why.slice(0, 6).join('\n')}\nОткройте кабинет → «Выгрузить на витрину»`); log('Авто', 'Выгрузка остановлена: ' + why.join('; ')); await save(); }
-      else await upload(plan.b, null, true);
+      let tail;
+      if (why.length) { tail = `📦 TgShop: витрина НЕ выгружена ⏸ — нужна ваша проверка:\n${why.slice(0, 6).join('\n')}\nОткройте кабинет → «Выгрузить на витрину»`; log('Авто', 'Выгрузка остановлена: ' + why.join('; ')); await save(); }
+      else tail = await upload(plan.b, null, true) || '📦 TgShop: витрина НЕ выгружена ❌ — откройте кабинет';
+      notify([...r.text, '', tail].join('\n'));
     }
     DB.lastAuto = { at: new Date().toISOString(), slot, ok: !!r }; await save(); render();
   } finally { autoCheck.running = false; }
