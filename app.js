@@ -1,4 +1,4 @@
-const APP_VERSION = '3.1.1';
+const APP_VERSION = '3.1.2';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -150,7 +150,9 @@ function editCard(c) {
           if (r.added.length) t.push(`новые размеры: ${r.added.map(x => h(x.sz)).join(', ')}`);
           r.notes.forEach(n => t.push(h(n)));
           if (r.soldOut) t.push('🔴 распродалась целиком — останется на витрине с остатком 0'); if (r.back) t.push('🟢 вернулась в продажу');
-          out.innerHTML = `<div class="msg ${t.length ? 'warn' : 'ok'}">${t.length ? '<b>Есть изменения:</b><br>' + t.join('<br>') : '✅ Всё совпадает с 4Partners'}<br><span class="muted">В продаже размеров: ${live}. ${t.length ? 'Чтобы изменения попали на витрину — «Выгрузить на витрину».' : ''}</span></div>`;
+          const liveList = C.liveSizes(c).map(x => `${h(x.sz)} — ${fmt(x.J + P0)} ₽`).join(', ');
+          const state = live ? `🟢 В наличии ${live} из ${c.sizes.length} размеров: ${liveList}` : `🔴 У 4Partners нет в наличии ни одного размера${c.status.soldOutSince ? ` (распродана с ${c.status.soldOutSince.split('-').reverse().join('.')})` : ''}`;
+          out.innerHTML = `<div class="msg ${live ? 'ok' : 'bad'}"><b>${state}</b>${!c.enabled ? '<br><span class="muted">Карточка выключена — на витрине её нет.</span>' : ''}<br>${t.length ? '<b>Что поменялось с прошлой проверки:</b><br>' + t.join('<br>') + '<br><span class="muted">Чтобы изменения попали на витрину — «Выгрузить на витрину».</span>' : '<span class="muted">С прошлой проверки ничего не поменялось — кабинет и 4Partners совпадают.</span>'}</div>`;
           log('Цены', `Сверка «${c.name}» с 4Partners: ${t.length ? 'есть изменения' : 'без изменений'}`);
         }
         await save(); root.querySelector('#cSizes').innerHTML = sizesHtml(); bindSizes(); root.querySelector('#cChecked').innerHTML = checkedHtml(); renderGrid(); renderStatus();
