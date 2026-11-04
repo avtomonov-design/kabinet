@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><title>Кабинет витрины</title><link rel="stylesheet" href="app.css?v=3.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex"></head>
+<body>
+<aside>
+  <div class="brand">conтекст store<small>кабинет витрины 2.0</small></div>
+  <nav>
+    <button data-tab="shop" class="on">Витрина</button>
+    <button data-tab="markup">Наценка</button>
+    <button data-tab="sold">Распроданные</button>
+    <button data-tab="log">Журнал</button>
+    <button data-tab="settings">Настройки</button>
+  </nav>
+  <div class="foot" id="saved"></div>
+</aside>
+<main>
+  <section id="shop" class="tab on">
+    <div class="top">
+      <div class="seg" id="catSeg"><button data-cat="1016" class="on">Девушкам <span id="cntW"></span></button><button data-cat="1015">Парням <span id="cntM"></span></button></div>
+      <div class="acts">
+        <button id="bUpdate" class="primary">Обновить цены и остатки</button>
+        <button id="bFigma">Сверить с Figma</button>
+        <button id="bExport">Выгрузить на витрину</button>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar">
+      <input id="q" placeholder="Поиск по названию или ID">
+      <select id="flt"><option value="">Все карточки</option><option value="live">В продаже</option><option value="warn">С подсказками</option><option value="sold">Распроданные</option><option value="off">Выключенные</option><option value="nofig">Без трафарета</option></select>
+      <button id="bAdd">+ По ссылкам 4Partners</button>
+    </div>
+    <div id="empty" class="hidden"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="markup" class="tab">
+    <h1>Наценка</h1>
+    <p class="muted">Из этих строк складывается сумма, которая прибавляется к цене поставщика у каждого размера. Без округления.</p>
+    <div id="mkRows"></div>
+    <div class="acts"><button id="mkAdd">+ Строка</button><span class="total" id="mkTotal"></span></div>
+  </section>
+
+  <section id="sold" class="tab">
+    <h1>Распроданные</h1>
+    <p class="muted">У поставщика нет ни одного размера. На витрине стоят с остатком 0; вернутся — снова в продаже и уйдут из задания.</p>
+    <div id="soldList"></div>
+    <h2>Задание сотруднику</h2>
+    <textarea id="task" rows="12" readonly></textarea>
+    <div class="acts"><button id="taskCopy">Скопировать задание</button></div>
+  </section>
+
+  <section id="log" class="tab"><h1>Журнал</h1><div id="logList"></div></section>
+
+  <section id="settings" class="tab">
+    <h1>Настройки</h1>
+    <div class="form" id="setForm"></div>
+    <div class="acts"><button class="primary" id="setSave">Сохранить</button></div>
+    <h2>Перенос и фото</h2>
+    <div class="acts">
+      <button id="migrate">Перенести текущую витрину</button>
+      <button id="photosFigma">Обновить все фото из Figma</button>
+      <button id="photosDrive">Перенести фото с Google Drive на GitHub</button>
+    </div>
+    <h2>Резервная копия</h2>
+    <div class="acts">
+      <button id="bkGh">Сохранить копию на GitHub сейчас</button>
+      <button id="bkGhLoad">Восстановить с GitHub</button>
+      <button id="bkFile">Скачать копию файлом</button>
+      <label class="filebtn">Восстановить из файла<input type="file" id="bkLoad" accept=".json"></label>
+    </div>
+    <div class="progress" id="setProg"></div>
+  </section>
+</main>
+<dialog id="dlg"><div id="dlgBody"></div></dialog>
+<script src="lib/xlsxwriter.js?v=3.0"></script>
+<script src="core.js?v=3.0"></script>
+<script src="net.js?v=3.0"></script>
+<script src="app.js?v=3.0"></script>
+</body>
+</html>
