@@ -83,6 +83,17 @@
     const full = await Promise.all(secs.map(async s => { const j = await figmaGet(token, `files/${key}/nodes?ids=${encodeURIComponent(s.id)}`); onProgress && onProgress(++done, secs.length); return j.nodes[s.id].document; }));
     return { ...doc, children: full };
   }
+  // Ссылка может вести на страницу Figma («> Актуальная витрина») — тогда ищем на ней фрейм «Трафареты…» по имени,
+  // чтобы витрину можно было пересобирать в Figma, не меняя ссылку в настройках.
+  async function figmaResolve(token, key, node) {
+    const j = await figmaGet(token, `files/${key}/nodes?ids=${encodeURIComponent(node)}&depth=1`);
+    const doc = j.nodes[node] && j.nodes[node].document; if (!doc) throw new Error('В Figma не найден узел ' + node + ' — проверьте ссылку в настройках');
+    if (doc.type !== 'CANVAS') return { id: node, name: doc.name };
+    const fr = (doc.children || []).filter(c => /трафарет/i.test(c.name));
+    if (!fr.length) throw new Error(`На странице Figma «${doc.name}» нет фрейма «Трафареты — коллекции». Если вы пересобираете витрину — положите новый фрейм с этим названием на эту страницу.`);
+    if (fr.length > 1) throw new Error(`На странице «${doc.name}» несколько фреймов «Трафареты…» (${fr.length}). Оставьте один — старый унесите в архивную вкладку.`);
+    return { id: fr[0].id, name: fr[0].name, page: doc.name };
+  }
   // Рендер фото пачками с паузами; onProgress(готово, всего)
   async function figmaRender(token, key, ids, onProgress, scale = 2) {
     const out = {};
@@ -128,5 +139,5 @@
   async function telegram(token, chat, text) { if (!token || !chat) return; await xfetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: { text: JSON.stringify({ chat_id: chat, text: text.slice(0, 4000) }) } }); }
   async function checkImages(urls, onProgress) { let ok = 0; const bad = []; for (let i = 0; i < urls.length; i += 100) { const r = await bridge('checkImages', { urls: urls.slice(i, i + 100) }); ok += r.ok; bad.push(...r.bad); onProgress && onProgress(Math.min(i + 100, urls.length), urls.length); } return { ok, bad }; }
 
-  root.Net = { bridge, hasBridge, dbGet, dbSet, fetch4P, sheetCSV, tg, tgUpload, tgWaitImport, tgShowcase, figmaNode, figmaRender, getBytes, sha1, gh, ghCheck, ghList, ghPut, ghRead, rawUrl, telegram, checkImages, sleep };
+  root.Net = { bridge, hasBridge, dbGet, dbSet, fetch4P, sheetCSV, tg, tgUpload, tgWaitImport, tgShowcase, figmaNode, figmaResolve, figmaRender, getBytes, sha1, gh, ghCheck, ghList, ghPut, ghRead, rawUrl, telegram, checkImages, sleep };
 })(window);
