@@ -1,4 +1,4 @@
-const APP_VERSION = '3.2.2';
+const APP_VERSION = '3.2.3';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -467,6 +467,7 @@ async function openExport(auto) {
 async function upload(b, items, auto) {
   if (busy) return false; busy = true; let done = false; $('#xGo').disabled = true; const out = $('#xOut');
   const say = (cls, t) => out.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${t}</div>`);
+  const dPrev = diffLast(b.rows, DB.lastExport && DB.lastExport.snap);   // что меняется относительно прошлой выгрузки — для отчёта
   try {
     const urls = [...new Set(b.rows.flatMap(r => String(r[5]).split(',')))].filter(u => !(DB.photoOk || []).includes(u));
     if (urls.length) { const img = await N.checkImages(urls, (a, n) => prog('#xProg', `Проверяю новые фото: ${a} из ${n}…`)); if (img.bad.length) throw new Error(`Не открываются фото (${img.bad.length}) — TgShop их не скачает:<br>${img.bad.slice(0, 5).map(h).join('<br>')}`); DB.photoOk = [...new Set([...(DB.photoOk || []), ...urls])].slice(-5000); }
@@ -488,7 +489,22 @@ async function upload(b, items, auto) {
     if (ok) DB.lastExport = { at: new Date().toISOString(), rows: b.rows.length, groups: b.groups, name, snap: snapOf(b.rows) };
     log('Выгрузка', `${b.rows.length} строк, ${b.groups} товаров, сверка ${ok ? 'OK' : 'с расхождениями'}`); await save(); render();
     const msg = ok ? `📦 TgShop: витрина выгружена ✅ и сошлась с кабинетом (${b.groups} товаров, ${b.rows.length} SKU)` : `📦 TgShop: витрина выгружена, но есть расхождения ⚠️ — откройте кабинет (${b.groups} товаров, ${b.rows.length} SKU)`;
-    if (auto) done = msg; else notify(msg);
+    if (auto) done = msg;
+    else {
+      const t = ['🚀 Выгрузка вручную'];
+      if (dPrev.known) {
+        const ch = [];
+        if (dPrev.price) ch.push(`цена изменилась: ${dPrev.price} SKU`);
+        if (dPrev.stock0) ch.push(`закончилось: ${dPrev.stock0} SKU`);
+        if (dPrev.stock5) ch.push(`появилось: ${dPrev.stock5} SKU`);
+        if (dPrev.addGroups.size) ch.push(`новых товаров: ${dPrev.addGroups.size}`);
+        if (dPrev.delGroups.size) ch.push(`ушло с витрины: ${dPrev.delGroups.size}`);
+        if (dPrev.addSku || dPrev.delSku) ch.push(`размеров добавлено/убрано: ${dPrev.addSku}/${dPrev.delSku}`);
+        t.push(ch.length ? 'С прошлой выгрузки: ' + ch.join(', ') : 'С прошлой выгрузки ничего не поменялось');
+      }
+      if (DB.lastUpdate) t.push(`Цены и остатки сняты у 4Partners: ${dstr(DB.lastUpdate)}`);
+      notify([...t, '', msg].join('\n'));
+    }
     prog('#xProg', 'Порядок на самой витрине проверьте в Telegram, кнопка «Каталог».'); if (!auto) done = ok;
   } catch (e) { prog('#xProg', ''); say('bad', h(e.message).replace(/&lt;br&gt;/g, '<br>')); const msg = `📦 TgShop: витрина НЕ выгружена ❌ — ${e.message.replace(/<br>/g, ' ')}`; if (auto) done = msg; else notify(msg); }
   busy = false; return done;
