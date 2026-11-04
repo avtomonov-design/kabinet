@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0.3';
+const APP_VERSION = '3.1.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -16,6 +16,7 @@ const DEFAULTS = {
   figmaToken: '', figmaUrl: 'https://www.figma.com/design/UqC8M7ln2Uisxpo1YEMdfh/Витрина?node-id=2-34',
   ghToken: '', ghPhotos: '', ghBackup: '', ghBranch: 'main',
   tgBot: '', tgChat: '',
+  autoOn: false, autoTimes: '10:00, 19:00', autoMode: 'update',
   sheetId: '1K1VkY1Qqhnl7Uu4ymsut9NcZ_j7SpPXGzWk2f1njPcI', sheetGid: '0', dropThreshold: 10,
 };
 let DB = { cards: [], order: { '1016': [], '1015': [] }, settings: { ...DEFAULTS }, showcase: [], history: [], lastUpdate: null, lastReport: null, lastExport: null, lastFigma: null, undo: null };
@@ -52,7 +53,7 @@ $$('#catSeg button').forEach(b => b.onclick = () => { CAT = b.dataset.cat; $$('#
 function render() { renderGrid(); renderStatus(); renderMarkup(); renderSold(); renderLog(); renderSettings(); }
 function renderStatus() {
   const en = DB.cards.filter(c => c.enabled), sold = en.filter(c => c.status.soldOutSince).length, warn = en.filter(c => C.hints(DB, c, P()).some(x => x[0] === 'bad' || x[0] === 'warn')).length;
-  $('#status').innerHTML = `Цены обновлены: <b>${dstr(DB.lastUpdate)}</b> · Выгрузка: <b>${dstr(DB.lastExport && DB.lastExport.at)}</b> · Сверка с Figma: <b>${dstr(DB.lastFigma)}</b> · распроданных ${sold} · с подсказками ${warn}`;
+  $('#status').innerHTML = `Цены обновлены: <b>${dstr(DB.lastUpdate)}</b> · Выгрузка: <b>${dstr(DB.lastExport && DB.lastExport.at)}</b> · Сверка с Figma: <b>${dstr(DB.lastFigma)}</b> · распроданных ${sold} · с подсказками ${warn} · Авто: <b>${DB.settings.autoOn ? autoTimes().join(', ') + (DB.settings.autoMode === 'export' ? ' + выгрузка' : '') : 'выкл'}</b>`;
   $('#cntW').textContent = DB.order['1016'].length; $('#cntM').textContent = DB.order['1015'].length;
 }
 
@@ -300,8 +301,8 @@ $('#bAdd').onclick = () => modal(`<h2>Добавить карточки по с�
 
 // ---------- обновить цены и остатки ----------
 $('#bUpdate').onclick = runUpdate;
-async function runUpdate() {
-  if (busy) return; if (!DB.cards.length) return migrate();
+async function runUpdate(auto) {
+  if (busy) return null; if (!DB.cards.length) return auto ? null : migrate(); let res = null;
   busy = true; modal('<h2>Обновление цен и остатков</h2><div class="progress" id="uProg">Спрашиваю у TgShop, что сейчас на витрине…</div><div id="uOut"></div>');
   try {
     const { cards: tgc } = await N.tgShowcase(DB.settings.shopId, (a, b) => prog('#uProg', `Читаю витрину TgShop: ${a} из ${b}…`));
@@ -328,9 +329,16 @@ async function runUpdate() {
     const pr = R.changes.filter(c => c.oSt && c.nSt && c.oJ !== c.nJ);
     log('Цены', `Цен изменилось ${pr.length}, закончилось ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось ${R.changes.filter(c => !c.oSt && c.nSt).length}, новых размеров ${R.added.length}, ошибок ${R.errors.length}`);
     await save(); render(); prog('#uProg', ''); showReport(DB.lastReport, true);
-    notify(`Витрина: цены обновлены. Изменений цены ${pr.length}, закончилось размеров ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось ${R.changes.filter(c => !c.oSt && c.nSt).length}${R.soldOut.length ? '. Распродались: ' + R.soldOut.join(', ') : ''}${R.errors.length ? '. Ошибок: ' + R.errors.length : ''}`);
-  } catch (e) { prog('#uProg', ''); $('#uOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="uOk">Закрыть</button></div>`; $('#uOk').onclick = closeModal; }
-  busy = false;
+    const up = pr.filter(c => c.nJ > c.oJ).length;
+    const t = [`🔄 ${auto ? 'Автообновление: ' : ''}цены и остатки обновлены`, `Цена изменилась: ${pr.length}${pr.length ? ` (↑${up} ↓${pr.length - up})` : ''}`, `Закончилось размеров: ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось: ${R.changes.filter(c => !c.oSt && c.nSt).length}${R.added.length ? `, новых: ${R.added.length}` : ''}`];
+    if (R.soldOut.length) t.push(`🔴 Распродались целиком: ${R.soldOut.join(', ')} — пора менять (задание в «Распроданных»)`);
+    if (R.back.length) t.push(`🟢 Вернулись в продажу: ${R.back.join(', ')}`);
+    if (R.errors.length) t.push(`⚠️ Не обновились: ${R.errors.length} (данные не тронуты)`);
+    if (!auto) t.push('Чтобы изменения попали на витрину, нажмите «Выгрузить на витрину»');
+    notify(t.join('\n'));
+    res = { R, pr };
+  } catch (e) { prog('#uProg', ''); $('#uOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="uOk">Закрыть</button></div>`; $('#uOk').onclick = closeModal; if (auto) notify(`❌ Автообновление не прошло: ${e.message}`); }
+  busy = false; return res;
 }
 function showReport(rep, fresh) {
   const { before: b, after: a, R } = rep, P0 = P();
@@ -365,8 +373,8 @@ function download(bytes, name) { const a = document.createElement('a'); a.href =
 // ---------- выгрузка ----------
 $('#bExport').onclick = openExport;
 function fileBytes(rows) { return writeXlsx([{ name: 'Категории', rows: [['ID подкатегории', 'ID корневой', 'Название категории'], [1015, '', 'парням'], [1016, '', 'девушкам']] }, { name: 'Товары', rows: [C.HEADER, ...rows.map(r => r.map((v, i) => i === 0 ? +v : v))] }]); }
-async function openExport() {
-  if (busy) return; busy = true;
+async function openExport(auto) {
+  if (busy) return null; busy = true; let plan = null;
   modal('<h2>Выгрузка на витрину</h2><div class="progress" id="xProg">Собираю файл и сравниваю с текущей витриной…</div><div id="xOut"></div>');
   try {
     const b = C.buildRows(DB), errs = C.validate(b.rows); const I = b.info;
@@ -392,11 +400,12 @@ async function openExport() {
     $('#xClose').onclick = closeModal;
     $('#xDl').onclick = () => download(fileBytes(b.rows), `Экспорт ${new Date().toLocaleDateString('ru-RU')} Каталог.xlsx`);
     $('#xGo').onclick = () => { if (warn.length && !confirm('Внимание:\n' + warn.join('\n') + '\n\nЗагрузить?')) return; upload(b, items); };
-  } catch (e) { prog('#xProg', ''); $('#xOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="xClose">Закрыть</button></div>`; $('#xClose').onclick = closeModal; }
-  busy = false;
+    plan = { b, errs, warn, d };
+  } catch (e) { prog('#xProg', ''); $('#xOut').innerHTML = `<div class="msg bad">${h(e.message)}</div><div class="acts"><button id="xClose">Закрыть</button></div>`; $('#xClose').onclick = closeModal; plan = { fail: e.message }; }
+  busy = false; return plan;
 }
-async function upload(b) {
-  if (busy) return; busy = true; $('#xGo').disabled = true; const out = $('#xOut');
+async function upload(b, items, auto) {
+  if (busy) return false; busy = true; let done = false; $('#xGo').disabled = true; const out = $('#xOut');
   const say = (cls, t) => out.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${t}</div>`);
   try {
     const urls = [...new Set(b.rows.flatMap(r => String(r[5]).split(',')))].filter(u => !(DB.photoOk || []).includes(u));
@@ -419,10 +428,10 @@ async function upload(b) {
     say(ok ? 'ok' : 'bad', `${ok ? '<b>Витрина совпадает с файлом.</b>' : '<b>Есть расхождения.</b>'} Товаров ${items.length} (в файле ${b.groups}), SKU ${keys.length} (в файле ${b.rows.length}), контрольная сумма ${okHash ? 'совпала' : 'не совпала'}, без фото ${noimg}, фото открываются ${cdn.ok}${cdn.bad.length ? ', не открываются ' + cdn.bad.length : ''}.`);
     if (ok) DB.lastExport = { at: new Date().toISOString(), rows: b.rows.length, groups: b.groups, name };
     log('Выгрузка', `${b.rows.length} строк, ${b.groups} товаров, сверка ${ok ? 'OK' : 'с расхождениями'}`); await save(); render();
-    notify(`Витрина выгружена: ${b.groups} товаров, ${b.rows.length} SKU. Сверка ${ok ? 'OK' : 'с расхождениями — откройте кабинет'}.`);
-    prog('#xProg', 'Порядок на самой витрине проверьте в Telegram, кнопка «Каталог».');
-  } catch (e) { prog('#xProg', ''); say('bad', h(e.message).replace(/&lt;br&gt;/g, '<br>')); }
-  busy = false;
+    notify(ok ? `✅ ${auto ? 'Автовыгрузка: в' : 'В'}итрина выгружена и сошлась с кабинетом\n${b.groups} товаров, ${b.rows.length} SKU` : `⚠️ Витрина выгружена, но есть расхождения — откройте кабинет\n${b.groups} товаров, ${b.rows.length} SKU`);
+    prog('#xProg', 'Порядок на самой витрине проверьте в Telegram, кнопка «Каталог».'); done = ok;
+  } catch (e) { prog('#xProg', ''); say('bad', h(e.message).replace(/&lt;br&gt;/g, '<br>')); notify(`❌ Выгрузка не прошла: ${e.message.replace(/<br>/g, ' ')}`); }
+  busy = false; return done;
 }
 
 // ---------- наценка ----------
@@ -449,15 +458,16 @@ const FIELDS = [['§', 'TgShop'], ['shopId', 'ID магазина'], ['dropThres
   ['§', 'Figma'], ['figmaToken', 'Личный токен Figma', 'password'], ['figmaUrl', 'Ссылка на «Трафареты — коллекции»'],
   ['§', 'GitHub (фото и резервная копия)'], ['ghToken', 'Токен GitHub', 'password'], ['ghPhotos', 'Репозиторий для фото (владелец/имя, публичный)'], ['ghBackup', 'Репозиторий для копии (владелец/имя, приватный)'], ['ghBranch', 'Ветка'],
   ['§', 'Telegram'], ['tgBot', 'Токен своего бота (@BotFather)', 'password'], ['tgChat', 'Ваш chat id'],
+  ['§', 'Автоматизация'], ['autoOn', 'Обновлять цены и остатки сам', 'check'], ['autoTimes', 'Во сколько (через запятую, время ноутбука)'], ['autoMode', 'После обновления', 'select', [['update', 'только обновить и прислать итог — выгружу сам'], ['export', 'сразу выгрузить на витрину, если проверки чистые']]],
   ['§', 'Тексты товара'], ['fullDesc', 'Полное описание', 'area'], ['shortDesc', 'Краткое описание', 'area'], ['attrs', 'Характеристики', 'area'], ['sizeGrid', 'Размерная сетка'],
   ['§', 'Перенос (разово)'], ['sheetId', 'Google Таблица старого каталога (ID)'], ['sheetGid', 'gid листа «Матрица»']];
 function renderSettings() {
   if ($('#setForm').contains(document.activeElement)) return;
-  $('#setForm').innerHTML = FIELDS.map(([k, l, t]) => k === '§' ? `<div class="sec">${l}</div>` : `<label>${l}</label>` + (t === 'area' ? `<textarea name="${k}" rows="3">${h(DB.settings[k])}</textarea>` : `<input name="${k}" type="${t || 'text'}" value="${h(DB.settings[k])}">`)).join('');
+  $('#setForm').innerHTML = FIELDS.map(([k, l, t, opts]) => k === '§' ? `<div class="sec">${l}</div>` : `<label>${l}</label>` + (t === 'area' ? `<textarea name="${k}" rows="3">${h(DB.settings[k])}</textarea>` : t === 'check' ? `<div style="padding-top:6px"><input class="switch" name="${k}" type="checkbox" ${DB.settings[k] ? 'checked' : ''}></div>` : t === 'select' ? `<select name="${k}">${opts.map(([v, n]) => `<option value="${v}" ${DB.settings[k] === v ? 'selected' : ''}>${n}</option>`).join('')}</select>` : `<input name="${k}" type="${t || 'text'}" value="${h(DB.settings[k])}">`)).join('');
 }
 $('#setSave').onclick = async () => {
   for (const k of ['ghPhotos', 'ghBackup']) { const v = $(`#setForm [name=${k}]`).value.trim(); if (v && !/^[\w.-]+\/[\w.-]+$/.test(v)) return prog('#setProg', `Поле «${k === 'ghPhotos' ? 'Репозиторий для фото' : 'Репозиторий для копии'}»: нужно название вида владелец/имя (например avtomonov-design/context-store-photos), а не ${/^github_pat_|^ghp_/.test(v) ? 'токен' : 'ссылка'}`); }
-  ghPreflight.ok = false; for (const [k, , t] of FIELDS) { if (k === '§') continue; const el = $(`#setForm [name=${k}]`); DB.settings[k] = t === 'number' ? +el.value : el.value.trim(); } storePhoto.have = null; await save(); prog('#setProg', 'Настройки сохранены'); };
+  ghPreflight.ok = false; for (const [k, , t] of FIELDS) { if (k === '§') continue; const el = $(`#setForm [name=${k}]`); DB.settings[k] = t === 'number' ? +el.value : t === 'check' ? el.checked : el.value.trim(); } storePhoto.have = null; await save(); prog('#setProg', 'Настройки сохранены'); renderStatus(); await applyAuto(true); };
 $('#bkGh').onclick = () => backupGh(false);
 $('#tgFind').onclick = tgFindChat; $('#tgTest').onclick = tgTest;
 function tgSay(t, kind = 'info') { const el = $('#tgProg'); el.className = 'msg ' + kind; el.textContent = t; }
@@ -490,10 +500,53 @@ $('#bkGhLoad').onclick = async () => { try { const st = DB.settings; const d = J
 $('#bkFile').onclick = () => { const { undo, ...rest } = DB; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
 $('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
 
+// ---------- автоматизация ----------
+let BRIDGE_V = '';
+const autoTimes = () => String(DB.settings.autoTimes || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => /^\d{1,2}:\d{2}$/.test(x)).map(x => x.padStart(5, '0'));
+const vOk = (v, need) => { const a = String(v).split('.').map(Number), b = need.split('.').map(Number); for (let i = 0; i < 3; i++) { if ((a[i] || 0) !== b[i]) return (a[i] || 0) > b[i]; } return true; };
+async function applyAuto(say) {
+  const on = DB.settings.autoOn, times = autoTimes();
+  if (on && !times.length) { say && tgSay('Укажите время автообновления, например 10:00, 19:00', 'warn'); return; }
+  if (!vOk(BRIDGE_V, '3.1.0')) { if (on && say) tgSay(`Автообновление включено, но мост ${BRIDGE_V} не умеет будить кабинет: пока оно сработает, только если вкладка кабинета открыта. Обновите мост до 3.1.0 — и всё заработает само.`, 'warn'); return; }
+  if (on && say) { const s0 = dueSlot(); if (s0) { DB.lastAutoSlot = s0; await save(); } }   // не срабатывать сразу при включении
+  try { await N.bridge('schedule', { on, times }); if (say) tgSay(on ? `🤖 Автообновление включено: каждый день в ${times.join(', ')}${DB.settings.autoMode === 'export' ? ' с выгрузкой на витрину' : ''}. Chrome должен быть открыт, ноутбук — не спать (если спал, догоню после пробуждения в течение 3 часов).` : 'Автообновление выключено', on ? 'ok' : 'info'); }
+  catch (e) { say && tgSay('Не получилось включить расписание: ' + e.message, 'bad'); }
+}
+function dueSlot() {
+  if (!DB.settings.autoOn) return null; const now = new Date();
+  for (const t of autoTimes().reverse()) {
+    const [hh, mm] = t.split(':').map(Number), d = new Date(now); d.setHours(hh, mm, 0, 0);
+    const key = d.toISOString().slice(0, 10) + ' ' + t;
+    if (d <= now && now - d < 3 * 3600 * 1000) return DB.lastAutoSlot === key ? null : key;
+  }
+  return null;
+}
+async function autoCheck() {
+  const slot = dueSlot(); if (!slot || busy || autoCheck.running) return false;
+  autoCheck.running = true; DB.lastAutoSlot = slot; await save();
+  try {
+    log('Авто', 'Запуск ' + slot.slice(11));
+    const r = await runUpdate(true);
+    if (r && DB.settings.autoMode === 'export') {
+      const plan = await openExport(true);
+      const why = plan.fail ? [plan.fail] : [...plan.errs, ...plan.warn]; if (r.R.errors.length) why.push(`не обновились ${r.R.errors.length} карточек`);
+      if (why.length) { notify(`⏸ Выгрузку не делал — нужна ваша проверка:\n${why.slice(0, 6).join('\n')}\nОткройте кабинет → «Выгрузить на витрину»`); log('Авто', 'Выгрузка остановлена: ' + why.join('; ')); await save(); }
+      else await upload(plan.b, null, true);
+    }
+    DB.lastAuto = { at: new Date().toISOString(), slot, ok: !!r }; await save(); render();
+  } finally { autoCheck.running = false; }
+  return true;
+}
+window.addEventListener('message', e => { if (e.source === window && e.data && e.data.__kab === 'autoTick') autoCheck(); });
+setInterval(() => { if (DB.cards.length) autoCheck(); }, 60000);
+
 (async () => {
   $('.brand small').textContent = 'подключаюсь к расширению…';
   const v = await N.hasBridge();
-  if (!v) { document.body.innerHTML = `<main style="max-width:640px;margin:60px auto;font:15px/1.5 -apple-system,Segoe UI,sans-serif"><h1>Нужно расширение-мост</h1><p>Кабинет работает через расширение «conтекст store — кабинет витрины (мост)» в этом Chrome: оно ходит в 4Partners и TgShop через ваши входы и хранит базу на этом компьютере.</p><p>Установите его по инструкции из чата и обновите эту страницу.</p><p style="color:#6b6b73">Если уже установили: откройте chrome://extensions — у расширения должно быть название «…(мост)» и версия 3.0.0. Если там «кабинет витрины 2.0», значит, файлы не заменились — распакуйте архив в ту же папку и нажмите «Обновить» (круглая стрелка).</p></main>`; return; }
+  if (!v) { document.body.innerHTML = `<main style="max-width:640px;margin:60px auto;font:15px/1.5 -apple-system,Segoe UI,sans-serif"><h1>Нужно расширение-мост</h1><p>Кабинет работает через расширение «conтекст store — кабинет витрины (мост)» в этом Chrome: оно ходит в 4Partners и TgShop через ваши входы и хранит базу на этом компьютере.</p><p>Установите его по инструкции из чата и обновите эту страницу.</p><p style="color:#6b6b73">Если уже установили: откройте chrome://extensions — у расширения должно быть название «…(мост)» и версия 3.1.0. Если там «кабинет витрины 2.0», значит, файлы не заменились — распакуйте архив в ту же папку и нажмите «Обновить» (круглая стрелка).</p></main>`; return; }
   $('.brand small').textContent = 'кабинет витрины · ' + APP_VERSION + ' · мост ' + v;
-  await load(); render();
+  BRIDGE_V = v; await load(); render();
+  if (DB.settings.autoOn) applyAuto(false);
+  if (new URLSearchParams(location.search).get('auto')) { document.title = '🤖 Автообновление витрины'; await autoCheck(); setTimeout(() => N.bridge('closeMe').catch(() => { }), 8000); }
+  else autoCheck();
 })();
