@@ -1,4 +1,4 @@
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.0.1';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -101,7 +101,7 @@ $('#q').oninput = renderGrid; $('#flt').onchange = renderGrid;
 
 // ---------- модальное окно ----------
 const dlg = $('#dlg');
-function modal(html, onReady) { $('#dlgBody').innerHTML = html; if (!dlg.open) dlg.showModal(); onReady && onReady($('#dlgBody')); }
+function modal(html, onReady) { $('#dlgBody').innerHTML = html; if (!dlg.open) dlg.showModal(); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
 function closeModal() { if (dlg.open) dlg.close(); }
 
 // ---------- карточка ----------
