@@ -11,7 +11,9 @@
   --btn: #5f5d6a;
   --btn-tx: rgba(240, 240, 240, .92);
   --g-auth: linear-gradient(150.28deg, #fff 2.8795%, #e2e2e2 48.771%, #dbdbdb 117.5%);
-  --line: #54525e;                    /* линии полей и таблиц, 1px */
+  --line: #54525e;
+  --line-t: rgba(84, 82, 94, .3);     /* линии таблиц и списков — 30% как в макете */
+  --line-u: rgba(84, 82, 94, .7);     /* подчёркивания полей — 70% как в макете */
   --line-soft: rgba(84, 82, 94, .3);  /* рамки текстовых полей */
   --box: rgba(0, 0, 0, .1);           /* рамки плашек в панелях */
   --link: #5a9cff;
@@ -151,7 +153,7 @@ main { margin-left: var(--side); min-width: 0; }
 .page { padding: calc(25 * var(--u)) var(--gut) calc(140 * var(--u)); }
 .field { display: flex; flex-direction: column; gap: calc(8 * var(--u)); }
 .lab { font-size: calc(18 * var(--u)); opacity: .5; }
-.uline { display: block; border: 0; border-bottom: 1px solid var(--line); background: transparent; outline: none; height: calc(21 * var(--u)); padding: 0; font-size: calc(18 * var(--u)); width: 100%; }
+.uline { display: block; border: 0; border-bottom: 1px solid var(--line-u); background: transparent; outline: none; height: calc(21 * var(--u)); padding: 0; font-size: calc(18 * var(--u)); width: 100%; }
 textarea { display: block; width: 100%; height: calc(76 * var(--u)); border: 1px solid var(--line-soft); background: transparent; padding: calc(12 * var(--u)); font-size: calc(18 * var(--u)); line-height: normal; resize: vertical; outline: none; }
 /* наценка: поле 189×21, крестик удаления — внутри строки, справа */
 .mkrow { position: relative; width: calc(189 * var(--u)); margin-bottom: calc(17 * var(--u)); }
@@ -165,8 +167,8 @@ textarea { display: block; width: 100%; height: calc(76 * var(--u)); border: 1px
 /* таблицы (распроданы, журнал): колонки через calc(237 * var(--u)), строки 45, линии на всю ширину */
 .tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .tbl th { text-align: left; font-weight: 400; opacity: .5; height: calc(33 * var(--u)); padding: 0; vertical-align: top; }
-.tbl td { height: calc(45 * var(--u)); padding: 0 calc(12 * var(--u)) 0 0; border-top: 1px solid var(--line); vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tbl tr:last-child td { border-bottom: 1px solid var(--line); }
+.tbl td { height: calc(45 * var(--u)); padding: 0 calc(12 * var(--u)) 0 0; border-top: 1px solid var(--line-t); vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tbl tr:last-child td { border-bottom: 1px solid var(--line-t); }
 .tbl col.c { width: calc(237 * var(--u)); }
 .tbl a { color: inherit; text-decoration: none; } .tbl a:hover { text-decoration: underline; }
 #soldList { margin-bottom: calc(32 * var(--u)); }
@@ -178,7 +180,7 @@ textarea { display: block; width: 100%; height: calc(76 * var(--u)); border: 1px
 #setForm .field { margin-bottom: calc(22 * var(--u)); }
 #setForm .field .uline { margin-top: calc(2 * var(--u)); }
 #setForm .field textarea { margin-top: calc(2 * var(--u)); }
-.settings select { display: block; border: 0; border-bottom: 1px solid var(--line); background: transparent url(img/tri.svg) no-repeat right calc(4 * var(--u)) center; -webkit-appearance: none; appearance: none; height: calc(23 * var(--u)); padding: 0 calc(20 * var(--u)) 0 0; width: 100%; font-size: calc(18 * var(--u)); outline: none; }
+.settings select { display: block; border: 0; border-bottom: 1px solid var(--line-u); background: transparent url(img/tri.svg) no-repeat right calc(4 * var(--u)) center; -webkit-appearance: none; appearance: none; height: calc(23 * var(--u)); padding: 0 calc(20 * var(--u)) 0 0; width: 100%; font-size: calc(18 * var(--u)); outline: none; }
 .chk { display: inline-flex; align-items: center; gap: calc(8 * var(--u)); cursor: pointer; font-size: calc(18 * var(--u)); }
 .chk input { -webkit-appearance: none; appearance: none; width: calc(15 * var(--u)); height: calc(15 * var(--u)); border: 1px solid #575661; margin: 0; display: grid; place-content: center; cursor: pointer; flex: none; }
 .chk input:checked::after { content: ""; width: calc(9 * var(--u)); height: calc(9 * var(--u)); background: #575661; }
@@ -191,9 +193,9 @@ textarea { display: block; width: 100%; height: calc(76 * var(--u)); border: 1px
 .note:empty { display: none; }
 .note.ok { color: #2f7d4f; } .note.bad { color: var(--bad); } .note.warn { color: #a15c00; }
 #setForm .note { margin: calc(-12 * var(--u)) 0 calc(22 * var(--u)); }
-.userRow { display: flex; gap: calc(18 * var(--u)); align-items: center; height: calc(45 * var(--u)); border-top: 1px solid var(--line); }
+.userRow { display: flex; gap: calc(18 * var(--u)); align-items: center; height: calc(45 * var(--u)); border-top: 1px solid var(--line-t); }
 .userRow b { font-weight: 400; width: calc(219 * var(--u)); flex: none; }
-.newUser { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: calc(18 * var(--u)); align-items: end; padding-top: calc(22 * var(--u)); border-top: 1px solid var(--line); }
+.newUser { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: calc(18 * var(--u)); align-items: end; padding-top: calc(22 * var(--u)); border-top: 1px solid var(--line-t); }
 .ver { margin-top: calc(40 * var(--u)); opacity: .4; font-size: calc(14 * var(--u)); }
 
 /* ---------- боковая панель calc(472 * var(--u)) (карточка, выгрузка, отчёты) ---------- */
@@ -219,11 +221,11 @@ body.pOpen #dlgBody > * { animation: riseIn .45s .06s cubic-bezier(.2,.7,.2,1) b
 #dlgBody .cap { font-size: calc(18 * var(--u)); opacity: .5; height: calc(33 * var(--u)); margin-top: calc(9 * var(--u)); }
 #dlgBody table.t { width: 100%; border-collapse: collapse; margin: 0 0 calc(31 * var(--u)); }
 #dlgBody table.t th { text-align: left; font-weight: 400; opacity: .5; height: calc(33 * var(--u)); padding: 0; vertical-align: top; }
-#dlgBody table.t td { height: calc(45 * var(--u)); padding: 0 calc(8 * var(--u)) 0 0; border-top: 1px solid var(--line); font-size: calc(18 * var(--u)); vertical-align: middle; }
+#dlgBody table.t td { height: calc(45 * var(--u)); padding: 0 calc(8 * var(--u)) 0 0; border-top: 1px solid var(--line-t); font-size: calc(18 * var(--u)); vertical-align: middle; }
 #dlgBody table.t td:first-child { width: calc(237 * var(--u)); }
-#dlgBody .list { margin: 0 0 calc(22 * var(--u)); border-top: 1px solid var(--line); padding-top: calc(12 * var(--u)); display: flex; flex-direction: column; gap: calc(12 * var(--u)); }
+#dlgBody .list { margin: 0 0 calc(22 * var(--u)); border-top: 1px solid var(--line-t); padding-top: calc(12 * var(--u)); display: flex; flex-direction: column; gap: calc(12 * var(--u)); }
 #dlgBody .list span { line-height: calc(21 * var(--u)); }
-#dlgBody details { margin: 0 0 calc(22 * var(--u)); border-top: 1px solid var(--line); padding-top: calc(12 * var(--u)); }
+#dlgBody details { margin: 0 0 calc(22 * var(--u)); border-top: 1px solid var(--line-t); padding-top: calc(12 * var(--u)); }
 #dlgBody summary { cursor: pointer; opacity: .7; margin-bottom: calc(8 * var(--u)); }
 #dlgBody .muted { opacity: .5; }
 #dlgBody p { margin: 0 0 calc(12 * var(--u)); }
@@ -255,7 +257,7 @@ body.pOpen #dlgBody > * { animation: riseIn .45s .06s cubic-bezier(.2,.7,.2,1) b
 .cFields { display: flex; flex-direction: column; gap: calc(33 * var(--u)); margin-top: calc(33 * var(--u)); padding-bottom: calc(76 * var(--u)); }
 .cF { display: flex; flex-direction: column; gap: calc(8 * var(--u)); align-items: flex-start; line-height: calc(21 * var(--u)); }
 .cF > .dim { line-height: normal; }
-.cF .linkBox { display: block; width: calc(371 * var(--u)); max-width: 100%; height: calc(21 * var(--u)); line-height: calc(20 * var(--u)); border-bottom: 1px solid var(--line); color: var(--link); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
+.cF .linkBox { display: block; width: calc(371 * var(--u)); max-width: 100%; height: calc(21 * var(--u)); line-height: calc(20 * var(--u)); border-bottom: 1px solid var(--line-u); color: var(--link); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: none; }
 .cF .linkBox:hover { text-decoration: underline; }
 .catSel { border: 0; background: transparent url(img/tri.svg) no-repeat right center; -webkit-appearance: none; appearance: none; padding: 0 calc(11 * var(--u)) 0 0; font-size: calc(18 * var(--u)); outline: none; cursor: pointer; width: max-content; }
 .sizes { display: flex; flex-wrap: wrap; gap: calc(6 * var(--u)) calc(12 * var(--u)); }
