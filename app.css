@@ -91,8 +91,7 @@ html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden;
 .side nav button { opacity: .5; transition: opacity .25s; }
 .side nav button:hover { opacity: .75; }
 .side nav button.on { opacity: 1; }
-.side .who { position: absolute; left: 19px; top: 672px; }
-@media (max-height: 760px) { .side .who { top: auto; bottom: 13px; } }
+.side .who { position: absolute; left: 19px; bottom: 13px; }
 .side .foot { display: none; }
 main { margin-left: var(--side); min-width: 0; }
 .tab { display: none; } .tab.on { display: block; }
