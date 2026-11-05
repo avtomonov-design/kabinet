@@ -1,4 +1,4 @@
-const APP_VERSION = '3.2.3';
+const APP_VERSION = '4.0.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -20,7 +20,7 @@ const DEFAULTS = {
   sheetId: '1K1VkY1Qqhnl7Uu4ymsut9NcZ_j7SpPXGzWk2f1njPcI', sheetGid: '0', dropThreshold: 10,
 };
 let DB = { cards: [], order: { '1016': [], '1015': [] }, settings: { ...DEFAULTS }, showcase: [], history: [], lastUpdate: null, lastReport: null, lastExport: null, lastFigma: null, undo: null };
-let CAT = '1016', busy = false;
+let CAT = '1015', busy = false;
 
 // ---------- хранение ----------
 async function load() { const db2 = await N.dbGet('db2'); if (db2) DB = { ...DB, ...db2, settings: { ...DEFAULTS, ...(db2.settings || {}) } }; if (/UqC8M7ln2Uisxpo1YEMdfh.*node-id=2-34/.test(DB.settings.figmaUrl)) DB.settings.figmaUrl = DEFAULTS.figmaUrl; delete DB.showcase; }
@@ -31,7 +31,7 @@ async function save(quiet) {
   if (DB.settings.ghToken && DB.settings.ghBackup) { clearTimeout(bkTimer); bkTimer = setTimeout(() => backupGh(true), 60000); }
 }
 async function backupGh(silent) {
-  try { const { undo, ...rest } = DB; await N.ghPut(DB.settings.ghToken, DB.settings.ghBackup, DB.settings.ghBranch, 'backup/db.json', new TextEncoder().encode(JSON.stringify(rest)), 'Резервная копия ' + new Date().toISOString()); if (!silent) prog('#setProg', 'Копия сохранена на GitHub'); DB.lastBackup = new Date().toISOString(); await N.dbSet('db2', DB); }
+  try { const { undo, sessions, ...rest } = DB; await N.ghPut(DB.settings.ghToken, DB.settings.ghBackup, DB.settings.ghBranch, 'backup/db.json', new TextEncoder().encode(JSON.stringify(rest)), 'Резервная копия ' + new Date().toISOString()); if (!silent) prog('#setProg', 'Копия сохранена на GitHub'); DB.lastBackup = new Date().toISOString(); await N.dbSet('db2', DB); }
   catch (e) { if (!silent) prog('#setProg', e.message); }
 }
 function log(kind, text) { DB.history.unshift({ at: new Date().toISOString(), kind, text }); DB.history = DB.history.slice(0, 300); }
@@ -46,21 +46,28 @@ const ghReady = () => DB.settings.ghToken && DB.settings.ghPhotos;
 async function notify(text) { try { await N.telegram(DB.settings.tgBot, DB.settings.tgChat, text); } catch (e) { } }
 
 // ---------- навигация ----------
-function tab(name) { $$('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === name)); $$('.tab').forEach(t => t.classList.toggle('on', t.id === name)); render(); }
-$$('nav button').forEach(b => b.onclick = () => tab(b.dataset.tab));
-$$('#catSeg button').forEach(b => b.onclick = () => { CAT = b.dataset.cat; $$('#catSeg button').forEach(x => x.classList.toggle('on', x === b)); renderGrid(); });
+function tab(name) { $$('nav button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name)); $$('.tab').forEach(t => t.classList.toggle('on', t.id === name)); render(); scrollTo(0, 0); }
+$$('nav button[data-tab]').forEach(b => b.onclick = () => tab(b.dataset.tab));
+function screen(id) { ['scrAuth', 'scrHelp', 'scrSupport'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id)); }
+$$('nav button[data-screen]').forEach(b => b.onclick = () => { if (b.dataset.screen === 'scrHelp') $('#helpText').innerHTML = window.HELP_HTML || ''; screen(b.dataset.screen); });
+$$('[data-close]').forEach(b => b.onclick = () => screen(null));
+// часы на экранах входа, инструкции и поддержки
+const tick = () => { const t = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); $$('.clock').forEach(e => e.textContent = t); };
+tick(); setInterval(tick, 10000);
+$$('#catSeg button').forEach(b => b.onclick = () => { CAT = b.dataset.cat; $$('#catSeg button').forEach(x => x.classList.toggle('on', x === b)); renderGrid(); scrollTo(0, 0); });
 
 function render() { renderGrid(); renderStatus(); renderMarkup(); renderSold(); renderLog(); renderSettings(); }
 function renderStatus() {
   const en = DB.cards.filter(c => c.enabled), sold = en.filter(c => c.status.soldOutSince).length, warn = en.filter(c => C.hints(DB, c, P()).some(x => x[0] === 'bad' || x[0] === 'warn')).length;
-  $('#status').innerHTML = `Цены обновлены: <b>${dstr(DB.lastUpdate)}</b> · Выгрузка: <b>${dstr(DB.lastExport && DB.lastExport.at)}</b> · Сверка с Figma: <b>${dstr(DB.lastFigma)}</b> · распроданных ${sold} · с подсказками ${warn} · Авто: <b>${DB.settings.autoOn ? autoTimes().join(', ') + (DB.settings.autoMode === 'export' ? ' + выгрузка' : '') : 'выкл'}</b>`;
-  $('#cntW').textContent = DB.order['1016'].length; $('#cntM').textContent = DB.order['1015'].length;
+  $('#bUpdate').title = `Обновить цены и остатки у 4Partners. Последний раз: ${dstr(DB.lastUpdate)} · распроданных ${sold} · с подсказками ${warn} · авто: ${DB.settings.autoOn ? autoTimes().join(', ') + (DB.settings.autoMode === 'export' ? ' + выгрузка' : '') : 'выкл'}`;
+  $('#bExport').title = 'Последняя выгрузка: ' + dstr(DB.lastExport && DB.lastExport.at); $('#bFigma').title = 'Последняя сверка: ' + dstr(DB.lastFigma);
+  $$('#catSeg button').forEach(b => b.title = DB.order[b.dataset.cat].length + ' карточек');
 }
 
 // ---------- витрина: сетка карточек ----------
 function filtered() {
   Object.defineProperty(DB, '_moved', { value: C.movedCards(DB, CAT), configurable: true, writable: true, enumerable: false });
-  const q = $('#q').value.trim().toLowerCase(), f = $('#flt').value;
+  const q = $('#q').value.trim().toLowerCase(), f = '';
   return DB.order[CAT].map((id, i) => ({ c: card(id), i })).filter(({ c }) => {
     if (!c) return false;
     const hs = C.hints(DB, c, P());
@@ -79,17 +86,18 @@ function renderGrid() {
   if ($('#emMigrate')) $('#emMigrate').onclick = migrate;
   g.innerHTML = list.map(({ c, i }) => {
     const ph = C.photoUrl(c.photos[0] || {}), pr = C.priceRange(c, P());
-    const tags = C.hints(DB, c, P()).map(([k, t]) => `<span class="tag ${k}">${h(t)}</span>`).join('');
-    return `<div class="card ${c.enabled ? '' : 'off'}" draggable="true" data-id="${c.id}"><span class="pos">${i + 1}</span><input type="checkbox" class="switch sw" ${c.enabled ? 'checked' : ''} title="${c.enabled ? 'Выключить' : 'Включить'}"><div class="ph">${ph ? `<img src="${h(ph)}" loading="lazy" alt="">` : 'нет фото'}</div><div class="body"><div class="nm" title="${h(c.name)}">${h(c.name) || '<span class="muted">без названия</span>'}</div><div class="pr">${pr ? (pr[0] === pr[1] ? fmt(pr[0]) : fmt(pr[0]) + ' – ' + fmt(pr[1])) + ' ₽' : '<span class="muted">нет в продаже</span>'}</div><div class="tags">${tags}</div></div></div>`;
-  }).join('') || (DB.cards.length ? '<p class="muted">Ничего не найдено</p>' : '');
-  const dragOk = !$('#q').value && !$('#flt').value;
+    const hs = C.hints(DB, c, P()).filter(([k]) => k !== 'off'), hint = hs.slice(0, 2).map(x => x[1]).join(' · ');
+    const price = pr ? 'RUB ' + (pr[0] === pr[1] ? fmt(pr[0]) : fmt(pr[0]) + ' – ' + fmt(pr[1])) : 'нет в продаже';
+    return `<div class="card ${c.enabled ? '' : 'off'}" data-id="${c.id}" title="${i + 1}-я · ${h(c.name)}"><span class="drag" title="Потяните, чтобы переставить"><i></i><i></i><i></i><i></i></span>${ph ? `<div class="ph"><img src="${h(ph)}" loading="lazy" alt=""></div>` : ''}<div class="meta"><div class="np"><p>${h(c.name) || 'без названия'}</p><p>${price}</p></div>${hint ? `<p class="hint ${hs.some(x => x[0] === 'bad') ? 'bad' : ''}">${h(hint)}</p>` : ''}</div></div>`;
+  }).join('') || (DB.cards.length ? '<p class="dim" style="padding:20px">Ничего не найдено</p>' : '');
+  const dragOk = !$('#q').value;
   $$('#grid .card').forEach(el => {
-    const id = el.dataset.id;
-    el.querySelector('.sw').onclick = async e => { e.stopPropagation(); const c = card(id); c.enabled = e.target.checked; log('Витрина', `${c.enabled ? 'Включена' : 'Выключена'} «${c.name}»`); await save(); renderGrid(); renderStatus(); };
+    const id = el.dataset.id, hd = el.querySelector('.drag');
     el.onclick = () => editCard(card(id));
-    el.draggable = dragOk;
-    el.ondragstart = e => { e.dataTransfer.setData('text/plain', id); el.classList.add('drag'); };
-    el.ondragend = () => el.classList.remove('drag');
+    // тянуть можно только за «перетаскиватель» — точки в углу
+    hd.onmousedown = () => { el.draggable = dragOk; }; hd.onclick = e => e.stopPropagation();
+    el.ondragstart = e => { e.dataTransfer.setData('text/plain', id); el.classList.add('dragging'); };
+    el.ondragend = () => { el.classList.remove('dragging'); el.draggable = false; };
     el.ondragover = e => { e.preventDefault(); const r = el.getBoundingClientRect(), after = e.clientX > r.left + r.width / 2; el.classList.toggle('over-after', after); el.classList.toggle('over-before', !after); };
     el.ondragleave = () => el.classList.remove('over-after', 'over-before');
     el.ondrop = async e => {
@@ -99,39 +107,49 @@ function renderGrid() {
     };
   });
 }
-$('#q').oninput = renderGrid; $('#flt').onchange = renderGrid;
+$('#q').oninput = renderGrid;
 
 // ---------- модальное окно ----------
-const dlg = $('#dlg');
-function modal(html, onReady) { $('#dlgBody').innerHTML = html; if (!dlg.open) dlg.showModal(); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
-function closeModal() { if (dlg.open) dlg.close(); }
+function modal(html, onReady) { $('#dlgBody').innerHTML = html; $('#dlgBody').scrollTop = 0; document.body.classList.add('pOpen'); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
+function closeModal() { document.body.classList.remove('pOpen'); }
+$('#pX').onclick = closeModal; $('#ovl').onclick = () => { if (!busy) closeModal(); };
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pOpen') && !busy) closeModal(); });
 
 // ---------- карточка ----------
 function editCard(c) {
-  const P0 = P(), an = C.anomalies(c), pos = DB.order[c.cat].indexOf(c.id) + 1;
-  const sizesHtml = () => { const an = C.anomalies(c); return c.sizes.map(s => `<span class="sz ${s.enabled === false ? 'dis' : an.has(s.sku) ? 'an' : s.stock ? 'on' : ''}" data-sku="${h(s.sku)}" title="${h(s.sku)} — нажмите, чтобы ${s.enabled === false ? 'включить' : 'выключить'} размер">${h(s.sz)} <small>${s.J ? fmt(s.J + P0) : '—'}</small></span>`).join('') || '<span class="muted">размеры появятся после обновления цен</span>'; };
+  const P0 = P(), pos = DB.order[c.cat].indexOf(c.id) + 1;
+  const sizesHtml = () => { const an = C.anomalies(c); return c.sizes.map(s => `<span class="sz ${s.enabled === false ? 'dis' : ''} ${an.has(s.sku) ? 'an' : ''} ${s.stock ? 'on' : ''}" data-sku="${h(s.sku)}" title="${h(s.sku)}${an.has(s.sku) ? ' · аномальная цена, скрыт' : ''} — нажмите, чтобы ${s.enabled === false ? 'включить' : 'выключить'} размер">${h(s.sz)} | ${s.J && s.stock ? fmt(s.J + P0) : '—'}</span>`).join('') || '<span class="dim">размеры появятся после инвентаризации</span>'; };
   const checkedHtml = () => `${h(c.group)}${c.status.checked ? ' · проверено ' + dstr(c.status.checked) : ''}`;
   const fPos = C.movedCards(DB, c.cat).get(c.id);
-  modal(`<h2>${h(c.name) || 'Карточка'} <span class="muted">· ${C.catName(c.cat)}, место ${pos}</span></h2>${fPos ? `<div class="msg info">↕ Стоит не как в Figma: там ${fPos}-я. <button class="small" id="cPlace">Вернуть на место как в Figma</button></div>` : ''}
+  const figUrl = c.figma ? `https://www.figma.com/design/${c.figma.key || figmaKey()}/?node-id=${c.figma.node.replace(':', '-')}` : '';
+  const ft = c.figma && c.figma.title;
+  modal(`<div class="cTitleRow"><input class="cTitle" id="cName" maxlength="30" value="${h(c.name)}" title="Название на витрине — можно поправить"><span class="pos">· место ${pos}</span></div>
+  <div class="sub" style="margin:4px 0 0">${ft ? `в Figma: «${h(ft)}» ${ft.slice(0, 30) !== c.name ? '<button class="lnk" id="cNameBack">вернуть из Figma</button>' : '✓'}` : 'нет трафарета в Figma'}${fPos ? ` · ↕ в Figma ${fPos}-я <button class="lnk" id="cPlace">вернуть на место</button>` : ''}</div>
   <div class="strip" id="strip"></div>
-  <div class="acts"><button id="cFig" ${c.figma && DB.settings.figmaToken ? '' : 'disabled'}>Обновить фото из трафарета</button><span class="muted">Фото меняются только в Figma</span><span class="muted" id="cProg"></span></div>
-  <div class="form">
-    <label>Название на витрине</label><div><input id="cName" maxlength="30" value="${h(c.name)}">${c.figma && c.figma.title ? `<div class="muted" style="margin-top:4px">В Figma: «${h(c.figma.title)}» ${c.figma.title.slice(0, 30) !== c.name ? '<button class="small" id="cNameBack">вернуть из Figma</button>' : '✓'}</div>` : ''}</div>
-    <label>Трафарет Figma</label><input id="cFigUrl" readonly title="Меняется в Figma" placeholder="ссылка на трафарет (node-id=…)" value="${c.figma ? h(`https://www.figma.com/design/${c.figma.key || figmaKey()}/?node-id=${c.figma.node.replace(':', '-')}`) : ''}">
-    <label>Ссылка 4Partners с цветом</label><input id="cLink" readonly title="Меняется в трафарете Figma" value="${h(c.link ? C.keyOf(c) : '')}" placeholder="https://store.4partners.io/ru/product/…#v…">
-    <label>Раздел</label><select id="cCat"><option value="1016" ${c.cat === '1016' ? 'selected' : ''}>Девушкам</option><option value="1015" ${c.cat === '1015' ? 'selected' : ''}>Парням</option></select>
-    <label>Размеры</label><div><div class="sizes" id="cSizes">${sizesHtml()}</div><div class="acts" style="margin:8px 0 0"><button class="small" id="c4p" ${c.link ? '' : 'disabled'}>🔄 Сверить с 4Partners</button>${c.link ? `<a class="muted" href="${h(C.keyOf(c))}" target="_blank">открыть на 4Partners ↗</a>` : ''}</div><div id="c4pOut"></div></div>
-    <label>ID в TgShop</label><div class="muted" style="padding-top:8px" id="cChecked">${checkedHtml()}</div>
+  <div class="cF"><span class="dim">фото меняются только в Figma</span><button class="lnk" id="cFig" style="text-align:left;width:max-content" ${c.figma && DB.settings.figmaToken ? '' : 'disabled'}>Синхронизировать</button><span class="dim" id="cProg"></span></div>
+  <div class="cFields">
+    <div class="cF"><span class="dim">Трафарет в Figma</span>${figUrl ? `<a class="linkBox" href="${h(figUrl)}" target="_blank">${h(figUrl)}</a>` : '<span class="dim">—</span>'}</div>
+    <div class="cF"><span class="dim">Раздел</span><select class="catSel" id="cCat"><option value="1016" ${c.cat === '1016' ? 'selected' : ''}>Девушкам</option><option value="1015" ${c.cat === '1015' ? 'selected' : ''}>Парням</option></select></div>
+    <div class="cF"><span class="dim">Ссылка на 4Partners</span>${c.link ? `<a class="linkBox" href="${h(C.keyOf(c))}" target="_blank">${h(C.keyOf(c))}</a>` : '<span class="dim">—</span>'}</div>
+    <div class="cF"><span class="dim">Размеры</span><div class="sizes" id="cSizes">${sizesHtml()}</div><button class="lnk" id="c4p" style="text-align:left;width:max-content" ${c.link ? '' : 'disabled'}>Сверить с 4Partners</button><div id="c4pOut"></div></div>
+    <div class="cF"><span class="dim">ID TgShop</span><span id="cChecked">${checkedHtml()}</span></div>
   </div>
-  <div class="acts"><button class="danger" id="cDel">Удалить карточку</button><span style="flex:1"></span><label class="muted"><input type="checkbox" id="cOn" ${c.enabled ? 'checked' : ''}> включена на витрине</label><button id="cClose">Закрыть</button><button class="primary" id="cSave">Сохранить</button></div>`, root => {
-    let photos = [...c.photos];
-    const drawStrip = () => { root.querySelector('#strip').innerHTML = photos.map(p => `<div class="th" style="cursor:default"><img src="${h(C.photoUrl(p))}" alt=""></div>`).join('') || '<span class="muted">Фото нет — нажмите «Обновить фото из трафарета»</span>'; };
+  <div class="acts"><div class="chkRow"><label class="chk"><input type="checkbox" id="cOn" ${c.enabled ? 'checked' : ''}> включена на витрине</label></div><button class="primary" id="cSave">сохранить</button><button id="cDel">удалить карточку</button></div>`, root => {
+    const photos = [...c.photos];
+    const strip = root.querySelector('#strip');
+    const drawStrip = () => { strip.innerHTML = photos.map(p => `<div class="th"><img src="${h(C.photoUrl(p))}" alt="" draggable="false"></div>`).join('') || '<div class="th"></div><div class="th"></div><div class="th"></div>'; };
     drawStrip();
+    // листать ленту фото захватом мышки (трекпад работает сам)
+    let sx = null, sl = 0;
+    strip.onmousedown = e => { sx = e.clientX; sl = strip.scrollLeft; strip.classList.add('grabbing'); };
+    window.onmousemove = e => { if (sx !== null) strip.scrollLeft = sl - (e.clientX - sx); };
+    window.onmouseup = () => { sx = null; strip.classList.remove('grabbing'); };
+    const nameEl = root.querySelector('#cName'); nameEl.oninput = () => { };
     const bindSizes = () => root.querySelectorAll('.sz[data-sku]').forEach(el => el.onclick = () => { const s = c.sizes.find(x => x.sku === el.dataset.sku); s.enabled = s.enabled === false; el.classList.toggle('dis', s.enabled === false); });
     bindSizes();
     root.querySelector('#c4p').onclick = async () => {
       if (busy) return; const out = root.querySelector('#c4pOut'), btn = root.querySelector('#c4p'); btn.disabled = true; busy = true;
-      out.innerHTML = '<div class="msg info">Спрашиваю у 4Partners… ⏳</div>';
+      out.innerHTML = '<div class="msg">Спрашиваю у 4Partners… ⏳</div>';
       try {
         const data = await N.fetch4P([c.link]), d = data[c.link];
         const r = C.updateCard(c, d && d.status === 200 ? d.vs : null, C.hasTwin(DB, c), C.idState(DB));
@@ -146,27 +164,21 @@ function editCard(c) {
           if (r.added.length) t.push(`новые размеры: ${r.added.map(x => h(x.sz)).join(', ')}`);
           r.notes.forEach(n => t.push(h(n)));
           if (r.soldOut) t.push('🔴 распродалась целиком — останется на витрине с остатком 0'); if (r.back) t.push('🟢 вернулась в продажу');
-          const liveList = C.liveSizes(c).map(x => `${h(x.sz)} — ${fmt(x.J + P0)} ₽`).join(', ');
-          const state = live ? `🟢 В наличии ${live} из ${c.sizes.length} размеров: ${liveList}` : `🔴 У 4Partners нет в наличии ни одного размера${c.status.soldOutSince ? ` (распродана с ${c.status.soldOutSince.split('-').reverse().join('.')})` : ''}`;
-          out.innerHTML = `<div class="msg ${live ? 'ok' : 'bad'}"><b>${state}</b>${!c.enabled ? '<br><span class="muted">Карточка выключена — на витрине её нет.</span>' : ''}<br>${t.length ? '<b>Что поменялось с прошлой проверки:</b><br>' + t.join('<br>') + '<br><span class="muted">Чтобы изменения попали на витрину — «Выгрузить на витрину».</span>' : '<span class="muted">С прошлой проверки ничего не поменялось — кабинет и 4Partners совпадают.</span>'}</div>`;
+          const state = live ? `🟢 В наличии ${live} из ${c.sizes.length} размеров` : `🔴 У 4Partners нет в наличии ни одного размера${c.status.soldOutSince ? ` (распродана с ${c.status.soldOutSince.split('-').reverse().join('.')})` : ''}`;
+          out.innerHTML = `<div class="msg ${live ? 'ok' : 'bad'}"><b>${state}</b>${!c.enabled ? '<br>Карточка выключена — на витрине её нет.' : ''}<br>${t.length ? 'Что поменялось с прошлой проверки:<br>' + t.join('<br>') + '<br><span class="muted">Чтобы изменения попали на витрину — «выгрузить».</span>' : '<span class="muted">С прошлой проверки ничего не поменялось.</span>'}</div>`;
           log('Цены', `Сверка «${c.name}» с 4Partners: ${t.length ? 'есть изменения' : 'без изменений'}`);
         }
         await save(); root.querySelector('#cSizes').innerHTML = sizesHtml(); bindSizes(); root.querySelector('#cChecked').innerHTML = checkedHtml(); renderGrid(); renderStatus();
       } catch (e) { out.innerHTML = `<div class="msg bad">${h(e.message)}</div>`; }
       busy = false; btn.disabled = false;
     };
-    root.querySelector('#cClose').onclick = closeModal;
     if (root.querySelector('#cPlace')) root.querySelector('#cPlace').onclick = async () => { C.placeLikeFigma(DB, c); log('Порядок', `«${c.name}» → как в Figma, место ${DB.order[c.cat].indexOf(c.id) + 1}`); await save(); closeModal(); renderGrid(); };
-    if (root.querySelector('#cNameBack')) root.querySelector('#cNameBack').onclick = () => { root.querySelector('#cName').value = c.figma.title.slice(0, 30); c.nameManual = false; };
-    root.querySelector('#cFig').onclick = async () => { try { prog('#cProg', 'Рисую фото из Figma…'); photos = await photosFromFigma(c.figma); drawStrip(); prog('#cProg', `Готово: ${photos.length} фото`); } catch (er) { prog('#cProg', er.message); } };
+    if (root.querySelector('#cNameBack')) root.querySelector('#cNameBack').onclick = () => { nameEl.value = c.figma.title.slice(0, 30); nameEl.oninput(); c.nameManual = false; };
+    root.querySelector('#cFig').onclick = async () => { try { prog('#cProg', 'Рисую фото из Figma…'); const fresh = await photosFromFigma(c.figma); photos.splice(0, photos.length, ...fresh); drawStrip(); prog('#cProg', `Готово: ${photos.length} фото — нажмите «сохранить»`); } catch (er) { prog('#cProg', er.message); } };
     root.querySelector('#cDel').onclick = async () => { if (!confirm(`Удалить «${c.name}» из кабинета? При выгрузке товар уйдёт с витрины.`)) return; DB.cards = DB.cards.filter(x => x !== c); for (const k of ['1016', '1015']) DB.order[k] = DB.order[k].filter(x => x !== c.id); log('Витрина', `Удалена «${c.name}»`); await save(); closeModal(); render(); };
     root.querySelector('#cSave').onclick = async () => {
-      const nm = root.querySelector('#cName').value.trim().slice(0, 30);
-      if (nm !== c.name) { c.nameManual = !(c.figma && c.figma.title && c.figma.title.slice(0, 30) === nm); c.name = nm; }
-      const { link, hv } = C.splitLink(root.querySelector('#cLink').value); if (link !== c.link || hv !== c.hv) { c.link = link; c.hv = hv; delete c.status.error; }
-      const fu = root.querySelector('#cFigUrl').value.trim(), node = C.figmaNodeFromUrl(fu);
-      if (node && (!c.figma || c.figma.node !== node)) c.figma = { node, key: C.figmaKeyFromUrl(fu) || figmaKey(), changed: true };
-      if (!fu) c.figma = null;
+      const nm = nameEl.value.trim().slice(0, 30);
+      if (nm && nm !== c.name) { c.nameManual = !(c.figma && c.figma.title && c.figma.title.slice(0, 30) === nm); c.name = nm; }
       const cat = root.querySelector('#cCat').value; if (cat !== c.cat) { DB.order[c.cat] = DB.order[c.cat].filter(x => x !== c.id); c.cat = cat; DB.order[cat].push(c.id); }
       c.photos = photos; c.enabled = root.querySelector('#cOn').checked;
       log('Карточка', `Изменена «${c.name}»`); await save(); closeModal(); render();
@@ -291,7 +303,7 @@ function addFromTrafarets(list, trs) {
   }
   return n;
 }
-$('#bSortFig').onclick = async () => {
+if ($('#bSortFig')) $('#bSortFig').onclick = async () => {
   if (!DB.figmaOrder) return alert('Сначала «Сверить с Figma» — кабинет запомнит порядок трафаретов');
   const n = C.movedCards(DB, CAT).size; if (!n) return alert('Раздел уже стоит как в Figma ✅');
   if (!confirm(`Расставить раздел «${C.catName(CAT)}» как в Figma? Переставленных вручную: ${n}.`)) return;
@@ -436,7 +448,7 @@ $('#bExport').onclick = openExport;
 function fileBytes(rows) { return writeXlsx([{ name: 'Категории', rows: [['ID подкатегории', 'ID корневой', 'Название категории'], [1015, '', 'парням'], [1016, '', 'девушкам']] }, { name: 'Товары', rows: [C.HEADER, ...rows.map(r => r.map((v, i) => i === 0 ? +v : v))] }]); }
 async function openExport(auto) {
   if (busy) return null; busy = true; let plan = null;
-  modal('<h2>Выгрузка на витрину</h2><div class="progress" id="xProg">Собираю файл…</div><div id="xOut"></div>');
+  modal('<h2>Выгрузка на витрину</h2><div class="progress" id="xProg">Собираю файл…</div><div id="xOut" style="display:flex;flex-direction:column;flex:1"></div>');
   try {
     const b = C.buildRows(DB), errs = C.validate(b.rows); const I = b.info;
     if (I.noLink.length) errs.unshift('нет ссылки 4Partners у включённых карточек: ' + I.noLink.join(', '));
@@ -444,20 +456,19 @@ async function openExport(auto) {
     const warn = [];
     if (L && b.rows.length < L.rows * (1 - DB.settings.dropThreshold / 100)) warn.push(`строк ${b.rows.length} — на ${DB.settings.dropThreshold}%+ меньше прошлой выгрузки (${L.rows})`);
     if (auto && d.known && d.delGroups.size > 5) warn.push(`с витрины уйдёт ${d.delGroups.size} товаров — проверьте сверку с Figma`);
-    let html = `<div class="msg ${errs.length ? 'bad' : 'ok'}">В файле ${b.rows.length} строк (${b.rows.filter(r => r[10] === 5).length} в продаже, ${b.rows.filter(r => r[10] === 0).length} с остатком 0), товаров ${b.groups}.</div>`;
-    if (d.known) {
-      html += `<table class="t"><tr><th>С прошлой выгрузки (${dstr(L.at)})</th><th></th></tr><tr><td>Новые товары</td><td class="n">${d.addGroups.size}</td></tr><tr><td>Уйдут с витрины</td><td class="n">${d.delGroups.size}</td></tr><tr><td>Цена изменится</td><td class="n">${d.price} SKU</td></tr><tr><td>Остаток станет 0 / станет 5</td><td class="n">${d.stock0} / ${d.stock5}</td></tr><tr><td>Новых размеров / убранных</td><td class="n">${d.addSku} / ${d.delSku}</td></tr></table>`;
-      if (d.delGroups.size) html += `<details ${d.delGroups.size <= 10 ? 'open' : ''}><summary>Уйдут с витрины — ${d.delGroups.size}</summary>${[...d.delGroups].map(g => h(L.snap.groups[g] || g)).join('<br>')}</details>`;
-    } else html += `<div class="msg info">Это первая выгрузка из кабинета 3.2 — сравнивать пока не с чем.</div>`;
+    let html = `<div class="msg ${errs.length ? 'bad' : ''}">В файле ${b.rows.length} строк (${b.rows.filter(r => r[10] === 5).length} в продаже, ${b.rows.filter(r => r[10] === 0).length} с остатком 0), товаров ${b.groups}</div>`;
     if (errs.length) html += `<div class="msg bad"><b>Загрузка невозможна:</b><br>${errs.slice(0, 30).map(h).join('<br>')}</div>`;
     if (warn.length) html += `<div class="msg warn">${warn.map(h).join('<br>')}</div>`;
-    if (I.sold.length) html += `<div class="msg info">Распроданные, с остатком 0: ${I.sold.map(h).join(', ')}</div>`;
-    if (I.anomalies.length) html += `<details><summary>Скрыто из-за аномальной цены — ${I.anomalies.length}</summary>${I.anomalies.map(h).join('<br>')}</details>`;
-    if (I.off.length) html += `<details><summary>Выключенные карточки (не попадут на витрину) — ${I.off.length}</summary>${I.off.map(h).join('<br>')}</details>`;
+    if (d.known) {
+      html += `<div class="cap">С прошлой выгрузки (${dstr(L.at)})</div><table class="t"><tr><td>Новые товары</td><td class="n">${d.addGroups.size}</td></tr><tr><td>Уйдут с витрины</td><td class="n">${d.delGroups.size}</td></tr><tr><td>Цена изменится</td><td class="n">${d.price} SKU</td></tr><tr><td>Остаток станет 0 / станет 5</td><td class="n">${d.stock0} / ${d.stock5}</td></tr><tr><td>Новых размеров / убранных</td><td class="n">${d.addSku} / ${d.delSku}</td></tr></table>`;
+      if (d.delGroups.size) html += `<div class="cap">Уйдут с витрины</div><div class="list">${[...d.delGroups].map(g => `<span>${h(L.snap.groups[g] || g)}</span>`).join('')}</div>`;
+    } else html += `<div class="msg">Это первая выгрузка из кабинета 4.0 — сравнивать пока не с чем.</div>`;
+    if (I.sold.length) html += `<div class="msg">Распроданные, с остатком 0: ${I.sold.map(h).join(', ')}</div>`;
     if (I.noPhoto.length) html += `<div class="msg warn">Без фото: ${I.noPhoto.map(h).join(', ')}</div>`;
-    html += `<div class="acts"><button id="xDl">Скачать .xlsx</button><span style="flex:1"></span><button id="xClose">Закрыть</button><button class="primary" id="xGo" ${errs.length ? 'disabled' : ''}>Загрузить в TgShop</button></div>`;
+    if (I.anomalies.length) html += `<div class="cap">Скрыты из-за аномальной цены</div><div class="list">${I.anomalies.map(x => `<span>${h(x)}</span>`).join('')}</div>`;
+    if (I.off.length) html += `<div class="cap">Выключенные карточки</div><div class="list">${I.off.map(x => `<span>${h(x)}</span>`).join('')}</div>`;
+    html += `<div class="acts"><button class="primary" id="xGo" ${errs.length ? 'disabled' : ''}>загрузить в TgShop</button><button id="xDl">скачать .xlsx</button></div>`;
     prog('#xProg', ''); $('#xOut').innerHTML = html;
-    $('#xClose').onclick = closeModal;
     $('#xDl').onclick = () => download(fileBytes(b.rows), `Экспорт ${new Date().toLocaleDateString('ru-RU')} Каталог.xlsx`);
     $('#xGo').onclick = () => { if (warn.length && !confirm('Внимание:\n' + warn.join('\n') + '\n\nЗагрузить?')) return; upload(b, items); };
     plan = { b, errs, warn, d };
@@ -466,7 +477,7 @@ async function openExport(auto) {
 }
 async function upload(b, items, auto) {
   if (busy) return false; busy = true; let done = false; $('#xGo').disabled = true; const out = $('#xOut');
-  const say = (cls, t) => out.insertAdjacentHTML('beforeend', `<div class="msg ${cls}">${t}</div>`);
+  const say = (cls, t) => { out.insertAdjacentHTML('afterbegin', `<div class="msg ${cls}">${t}</div>`); $('#dlgBody').scrollTop = 0; };
   const dPrev = diffLast(b.rows, DB.lastExport && DB.lastExport.snap);   // что меняется относительно прошлой выгрузки — для отчёта
   try {
     const urls = [...new Set(b.rows.flatMap(r => String(r[5]).split(',')))].filter(u => !(DB.photoOk || []).includes(u));
@@ -512,41 +523,49 @@ async function upload(b, items, auto) {
 
 // ---------- наценка ----------
 function renderMarkup() {
+  if ($('#mkRows').contains(document.activeElement)) return;
   const L = DB.settings.markupLines;
-  $('#mkRows').innerHTML = L.map((l, i) => `<div class="mkrow"><input data-i="${i}" data-k="label" value="${h(l.label)}" placeholder="Подпись, например «Доставка»"><input data-i="${i}" data-k="amount" type="number" value="${l.amount}"><button data-del="${i}" title="Убрать">×</button></div>`).join('');
-  $('#mkTotal').textContent = 'Итого наценка: ' + fmt(P()) + ' ₽';
-  $$('#mkRows input').forEach(el => el.onchange = async () => { const l = L[+el.dataset.i]; l[el.dataset.k] = el.dataset.k === 'amount' ? +el.value : el.value; log('Наценка', `Итого ${P()} ₽`); await save(); renderMarkup(); renderGrid(); });
-  $$('#mkRows [data-del]').forEach(el => el.onclick = async () => { L.splice(+el.dataset.del, 1); await save(); renderMarkup(); renderGrid(); });
+  $('#mkRows').innerHTML = L.map((l, i) => `<div class="mkrow"><div class="field" style="margin:0"><span class="lab"><input data-i="${i}" data-k="label" value="${h(l.label)}" placeholder="Подпись, например «Доставка»"></span><input class="uline" data-i="${i}" data-k="amount" inputmode="numeric" value="RUB ${fmt(l.amount)}"></div><button class="del" data-del="${i}" title="Убрать строку">×</button></div>`).join('');
+  $('#mkTotal').textContent = 'RUB ' + fmt(P());
+  $$('#mkRows input[data-k=amount]').forEach(el => { el.onfocus = () => { el.value = L[+el.dataset.i].amount; }; el.onblur = () => { L[+el.dataset.i].amount = +String(el.value).replace(/[^\d-]/g, '') || 0; el.value = 'RUB ' + fmt(L[+el.dataset.i].amount); $('#mkTotal').textContent = 'RUB ' + fmt(P()); }; });
+  $$('#mkRows input[data-k=label]').forEach(el => el.oninput = () => { L[+el.dataset.i].label = el.value; });
+  $$('#mkRows [data-del]').forEach(el => el.onclick = () => { L.splice(+el.dataset.del, 1); renderMarkup(); });
 }
-$('#mkAdd').onclick = async () => { DB.settings.markupLines.push({ label: '', amount: 0 }); await save(); renderMarkup(); };
+$('#mkAdd').onclick = () => { DB.settings.markupLines.push({ label: 'Наценка', amount: 0 }); renderMarkup(); };
+$('#mkSave').onclick = async () => { document.activeElement && document.activeElement.blur(); log('Наценка', `Итого ${P()} ₽`); await save(); renderMarkup(); renderGrid(); flash('#mkSave', 'сохранено'); };
+function flash(sel, t) { const el = $(sel), was = el.dataset.t || el.textContent; el.dataset.t = was; el.textContent = t; setTimeout(() => el.textContent = was, 1500); }
 
 // ---------- распроданные, журнал ----------
 function renderSold() {
   const s = DB.cards.filter(c => c.enabled && c.status.soldOutSince);
-  $('#soldList').innerHTML = s.length ? `<table class="t"><tr><th>Карточка</th><th>Раздел</th><th>Нет с</th><th>Обновлений подряд</th><th></th></tr>${s.map(c => `<tr><td>${h(c.name)}</td><td>${C.catName(c.cat)}</td><td>${c.status.soldOutSince.split('-').reverse().join('.')}</td><td class="n">${c.status.soldRuns || 1}</td><td><a href="${h(C.keyOf(c))}" target="_blank">4Partners</a></td></tr>`).join('')}</table>` : '<p class="muted">Распроданных нет.</p>';
+  $('#soldList').innerHTML = s.length ? `<table class="tbl" style="margin-bottom:34px"><tr><th>Карточка</th><th>Раздел</th><th>Был</th><th>Обновлений подряд</th></tr>${s.map(c => `<tr><td><a href="${h(C.keyOf(c))}" target="_blank" style="color:inherit;text-decoration:none">${h(c.name)}</a></td><td>${C.catName(c.cat)}</td><td>${c.status.soldOutSince.split('-').reverse().join('.')}</td><td>${c.status.soldRuns || 1}</td></tr>`).join('')}</table>` : '<p class="dim" style="margin:0 0 34px">Распроданных нет 🎉</p>';
   $('#task').value = C.staffTask(DB);
 }
-$('#taskCopy').onclick = async () => { await navigator.clipboard.writeText($('#task').value); $('#taskCopy').textContent = 'Скопировано'; setTimeout(() => $('#taskCopy').textContent = 'Скопировать задание', 1500); };
-function renderLog() { $('#logList').innerHTML = DB.history.length ? `<table class="t">${DB.history.map(x => `<tr><td class="n">${new Date(x.at).toLocaleString('ru-RU')}</td><td>${h(x.kind)}</td><td>${h(x.text)}</td></tr>`).join('')}</table>` : '<p class="muted">Пока пусто.</p>'; }
+$('#taskCopy').onclick = async () => { await navigator.clipboard.writeText($('#task').value); flash('#taskCopy', 'скопировано'); };
+function renderLog() { $('#logList').innerHTML = DB.history.length ? `<table class="tbl"><tr><th>Дата</th><th>Тип</th><th>Статус</th></tr>${DB.history.map(x => `<tr><td style="white-space:nowrap">${new Date(x.at).toLocaleString('ru-RU')}</td><td>${h(x.kind)}</td><td>${h(x.text)}</td></tr>`).join('')}</table>` : '<p class="dim">Пока пусто.</p>'; }
 
 // ---------- настройки ----------
-const FIELDS = [['§', 'TgShop'], ['shopId', 'ID магазина'], ['dropThreshold', 'Стоп, если строк меньше прошлой выгрузки на, %', 'number'],
+const FIELDS = [['§', 'Тексты товаров'], ['fullDesc', 'Полное описание', 'area'], ['shortDesc', 'Краткое описание', 'area'], ['attrs', 'Характеристики', 'area'], ['sizeGrid', 'Размерная сетка', 'area'],
+  ['§', 'TgShop'], ['shopId', 'ID магазина'], ['dropThreshold', 'Стоп, если строк меньше прошлой выгрузки на, %', 'number'],
   ['§', 'Figma'], ['figmaToken', 'Личный токен Figma', 'password'], ['figmaUrl', 'Ссылка на страницу Figma «> Актуальная витрина»'],
-  ['§', 'GitHub (фото и резервная копия)'], ['ghToken', 'Токен GitHub', 'password'], ['ghPhotos', 'Репозиторий для фото (владелец/имя, публичный)'], ['ghBackup', 'Репозиторий для копии (владелец/имя, приватный)'], ['ghBranch', 'Ветка'],
-  ['§', 'Telegram'], ['tgBot', 'Токен своего бота (@BotFather)', 'password'], ['tgChat', 'Ваш chat id'],
-  ['§', 'Автоматизация'], ['autoOn', 'Обновлять цены и остатки сам', 'check'], ['autoTimes', 'Во сколько (через запятую, время ноутбука)'], ['autoMode', 'После обновления', 'select', [['update', 'только обновить и прислать итог — выгружу сам'], ['export', 'сразу выгрузить на витрину, если проверки чистые']]],
-  ['§', 'Тексты товара'], ['fullDesc', 'Полное описание', 'area'], ['shortDesc', 'Краткое описание', 'area'], ['attrs', 'Характеристики', 'area'], ['sizeGrid', 'Размерная сетка'],
+  ['§', 'GitHub'], ['ghToken', 'Токен GitHub', 'password'], ['ghPhotos', 'Репозиторий для фото'], ['ghBackup', 'Репозиторий для копии'], ['ghBranch', 'Ветка'],
+  ['§', 'Telegram для уведомлений'], ['tgBot', 'Токен бота', 'password'], ['tgChat', 'Чат ID'],
+  ['§', 'Автоматизация'], ['autoOn', 'автообновление', 'check'], ['autoTimes', 'Во сколько (через запятую, время ноутбука)'], ['autoMode', 'После обновления', 'select', [['update', 'только обновить и прислать итог — выгружу сам'], ['export', 'сразу выгрузить на витрину, если нет ошибок']]],
   ['§', 'Перенос (разово)'], ['sheetId', 'Google Таблица старого каталога (ID)'], ['sheetGid', 'gid листа «Матрица»']];
+const TG_ROW = [$('#tgFind').parentElement, $('#tgProg')];   // ссылки Telegram переносятся внутрь формы при каждой отрисовке
 function renderSettings() {
   if ($('#setForm').contains(document.activeElement)) return;
-  $('#setForm').innerHTML = FIELDS.map(([k, l, t, opts]) => k === '§' ? `<div class="sec">${l}</div>` : `<label>${l}</label>` + (t === 'area' ? `<textarea name="${k}" rows="3">${h(DB.settings[k])}</textarea>` : t === 'check' ? `<div style="padding-top:6px"><input class="switch" name="${k}" type="checkbox" ${DB.settings[k] ? 'checked' : ''}></div>` : t === 'select' ? `<select name="${k}">${opts.map(([v, n]) => `<option value="${v}" ${DB.settings[k] === v ? 'selected' : ''}>${n}</option>`).join('')}</select>` : `<input name="${k}" type="${t || 'text'}" value="${h(DB.settings[k])}">`)).join('');
+  $('#setForm').innerHTML = FIELDS.map(([k, l, t, opts]) => k === '§' ? `<h3>${l}</h3>` : t === 'check' ? `<div class="field"><label class="chk"><input name="${k}" type="checkbox" ${DB.settings[k] ? 'checked' : ''}> ${l}</label></div>` : `<div class="field"><span class="lab">${l}</span>` + (t === 'area' ? `<textarea name="${k}" rows="2">${h(DB.settings[k])}</textarea>` : t === 'select' ? `<select name="${k}">${opts.map(([v, n]) => `<option value="${v}" ${DB.settings[k] === v ? 'selected' : ''}>${n}</option>`).join('')}</select>` : `<input class="uline" name="${k}" type="${t || 'text'}" value="${h(DB.settings[k])}" autocomplete="off">`) + '</div>').join('');
+  // ссылки Telegram — сразу под разделом Telegram, как в макете
+  const chat = $('#setForm [name=tgChat]').closest('.field'); chat.after(TG_ROW[1]); chat.after(TG_ROW[0]);
+  renderUsers();
 }
 $('#setSave').onclick = async () => {
   for (const k of ['ghPhotos', 'ghBackup']) { const v = $(`#setForm [name=${k}]`).value.trim(); if (v && !/^[\w.-]+\/[\w.-]+$/.test(v)) return prog('#setProg', `Поле «${k === 'ghPhotos' ? 'Репозиторий для фото' : 'Репозиторий для копии'}»: нужно название вида владелец/имя (например avtomonov-design/context-store-photos), а не ${/^github_pat_|^ghp_/.test(v) ? 'токен' : 'ссылка'}`); }
   ghPreflight.ok = false; for (const [k, , t] of FIELDS) { if (k === '§') continue; const el = $(`#setForm [name=${k}]`); DB.settings[k] = t === 'number' ? +el.value : t === 'check' ? el.checked : el.value.trim(); } storePhoto.have = null; await save(); prog('#setProg', 'Настройки сохранены'); renderStatus(); await applyAuto(true); };
 $('#bkGh').onclick = () => backupGh(false);
 $('#tgFind').onclick = tgFindChat; $('#tgTest').onclick = tgTest;
-function tgSay(t, kind = 'info') { const el = $('#tgProg'); el.className = 'msg ' + kind; el.textContent = t; }
+function tgSay(t, kind = 'info') { const el = $('#tgProg'); el.className = 'note ' + kind; el.textContent = t; }
 async function tgFindChat() {
   const tok = $('#setForm [name=tgBot]').value.trim().replace(/^bot/i, '').replace(/\s+/g, '');
   if (!tok) return tgSay('Сначала вставьте токен бота в поле «Токен своего бота» 👆', 'warn');
@@ -573,7 +592,7 @@ async function tgTest() {
   } catch (e) { tgSay('Не получилось: ' + e.message, 'bad'); }
 }
 $('#bkGhLoad').onclick = async () => { try { const st = DB.settings; const d = JSON.parse(new TextDecoder().decode(await N.ghRead(st.ghToken, st.ghBackup, st.ghBranch, 'backup/db.json'))); if (!confirm(`Восстановить копию: ${d.cards.length} карточек? Текущие данные будут заменены.`)) return; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; await save(); render(); prog('#setProg', 'Восстановлено с GitHub'); } catch (e) { prog('#setProg', e.message); } };
-$('#bkFile').onclick = () => { const { undo, ...rest } = DB; rest.settings = { ...rest.settings, figmaToken: '', ghToken: '', tgBot: '' }; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
+$('#bkFile').onclick = () => { const { undo, sessions, ...rest } = DB; rest.settings = { ...rest.settings, figmaToken: '', ghToken: '', tgBot: '' }; download(new TextEncoder().encode(JSON.stringify(rest)), `Кабинет витрины — копия ${new Date().toLocaleDateString('ru-RU')}.json`); };
 $('#bkLoad').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const d = JSON.parse(await f.text()); if (!Array.isArray(d.cards)) throw new Error('Это не копия кабинета 2.0'); if (!confirm(`Восстановить ${d.cards.length} карточек?`)) return; const keep = { figmaToken: DB.settings.figmaToken, ghToken: DB.settings.ghToken, tgBot: DB.settings.tgBot }; DB = { ...DB, ...d, settings: { ...DEFAULTS, ...d.settings } }; for (const k in keep) if (!DB.settings[k]) DB.settings[k] = keep[k]; await save(); render(); } catch (er) { alert(er.message); } e.target.value = ''; };
 
 // ---------- автоматизация ----------
@@ -618,13 +637,107 @@ async function autoCheck() {
 window.addEventListener('message', e => { if (e.source === window && e.data && e.data.__kab === 'autoTick') autoCheck(); });
 setInterval(() => { if (DB.cards.length) autoCheck(); }, 60000);
 
+// ---------- вход: логин и пароль ----------
+// Пользователи и сессии лежат в базе моста (на этом компьютере). Сессия — cookie без срока: живёт до закрытия браузера.
+const SESS = 'kab_s';
+const cookieGet = () => (document.cookie.match(/(?:^|; )kab_s=([^;]+)/) || [])[1];
+const cookieSet = v => { document.cookie = `${SESS}=${v || ''}; path=/kabinet; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}${v ? '' : '; max-age=0'}`; };
+const rnd = n => [...crypto.getRandomValues(new Uint8Array(n))].map(b => b.toString(16).padStart(2, '0')).join('');
+async function pwHash(pw, salt) {
+  const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: new TextEncoder().encode(salt), iterations: 150000 }, k, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+let ME = null;
+const users = () => DB.users || (DB.users = []);
+const shortName = n => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : (p[0] || ''); };
+function currentUser() { const t = cookieGet(), s = t && DB.sessions && DB.sessions[t]; return (s && users().find(u => u.login === s.login)) || null; }
+async function makeUser(login, name, pw) { const salt = rnd(16); return { login, name: name || login, salt, hash: await pwHash(pw, salt), at: new Date().toISOString() }; }
+async function startSession(u) {
+  const t = rnd(24); DB.sessions = DB.sessions || {}; DB.sessions[t] = { login: u.login, at: new Date().toISOString() };
+  const ks = Object.keys(DB.sessions); if (ks.length > 30) ks.sort((a, b) => DB.sessions[a].at < DB.sessions[b].at ? -1 : 1).slice(0, ks.length - 30).forEach(k => delete DB.sessions[k]);
+  cookieSet(t); await save(); ME = u;
+}
+function showAuth() {
+  const first = !users().length;
+  closeModal(); $('#scrApp').classList.add('hidden'); screen('scrAuth');
+  $('#authHint').textContent = first ? 'первый вход — придумайте логин, пароль и имя' : '';
+  $('#aName').classList.toggle('hidden', !first);
+  $('#aPass').autocomplete = first ? 'new-password' : 'current-password';
+  $('#aGo').textContent = first ? 'создать' : 'войти';
+  $('#authErr').textContent = ''; $('#scrAuth').classList.remove('err');
+  setTimeout(() => $('#aLogin').focus(), 50);
+}
+function enterApp() {
+  screen(null); $('#scrApp').classList.remove('hidden');
+  $('#who').textContent = shortName(ME.name); $('#who').title = `${ME.name} (${ME.login}) — нажмите, чтобы выйти`;
+  render();
+}
+const authFail = t => { const sc = $('#scrAuth'); $('#authErr').textContent = t; sc.classList.add('err', 'shake'); setTimeout(() => sc.classList.remove('shake'), 400); };
+$('#aPass').oninput = () => { $('#aEye').classList.toggle('hidden', !$('#aPass').value); $('#scrAuth').classList.remove('err'); $('#authErr').textContent = ''; };
+$('#aLogin').oninput = () => { $('#scrAuth').classList.remove('err'); $('#authErr').textContent = ''; };
+$('#aEye').onclick = () => { const p = $('#aPass'), show = p.type === 'password'; p.type = show ? 'text' : 'password'; $('#aEye img').src = show ? 'img/eye-open.svg' : 'img/eye-closed.svg'; $('#aEye').title = show ? 'Скрыть пароль' : 'Показать пароль'; p.focus(); };
+$('#authForm').onsubmit = async e => {
+  e.preventDefault();
+  const lg = $('#aLogin').value.trim(), pw = $('#aPass').value, first = !users().length;
+  if (!lg) return authFail('введите логин');
+  if (!pw) return authFail('введите пароль');
+  $('#aGo').disabled = true;
+  try {
+    if (first) {
+      if (pw.length < 6) return authFail('пароль — минимум 6 символов');
+      const u = await makeUser(lg, $('#aName').value.trim() || lg, pw); users().push(u); log('Вход', `Создан пользователь ${lg}`);
+      await startSession(u); return enterApp();
+    }
+    const u = users().find(x => x.login.toLowerCase() === lg.toLowerCase());
+    if (!u || await pwHash(pw, u.salt) !== u.hash) return authFail(u ? 'неверный пароль' : 'нет такого пользователя');
+    await startSession(u); $('#aPass').value = ''; enterApp();
+  } finally { $('#aGo').disabled = false; }
+};
+$('#who').onclick = async () => {
+  if (!confirm(`Выйти из кабинета (${ME.name})?`)) return;
+  const t = cookieGet(); if (t && DB.sessions) delete DB.sessions[t]; cookieSet(''); await save(); ME = null; $('#aLogin').value = ''; $('#aPass').value = ''; showAuth();
+};
+// пользователи в настройках
+function renderUsers() {
+  const box = $('#users'); if (!box || box.contains(document.activeElement)) return;
+  box.innerHTML = users().map((u, i) => `<div class="userRow" data-i="${i}"><b>${h(u.login)}</b><span>${h(u.name)}${ME && u.login === ME.login ? ' <span class="dim">· это вы</span>' : ''}</span><span style="flex:1"></span><button class="lnk" data-edit="${i}">изменить</button>${ME && u.login === ME.login ? '' : `<button class="lnk bad" data-del="${i}">удалить</button>`}</div>`).join('') +
+    `<div class="newUser"><div class="field" style="margin:0"><span class="lab">Логин</span><input class="uline" id="nuLogin" autocomplete="off"></div><div class="field" style="margin:0"><span class="lab">Имя</span><input class="uline" id="nuName" autocomplete="off"></div><div class="field" style="margin:0"><span class="lab">Пароль</span><input class="uline" id="nuPass" type="password" autocomplete="new-password"></div><button class="lnk" id="nuAdd">добавить пользователя</button></div><div class="note" id="uProg2"></div>`;
+  const say = (t, k = '') => { const n = $('#uProg2'); n.className = 'note ' + k; n.textContent = t; };
+  $('#nuAdd').onclick = async () => {
+    const lg = $('#nuLogin').value.trim(), nm = $('#nuName').value.trim(), pw = $('#nuPass').value;
+    if (!lg || !pw) return say('нужны логин и пароль', 'warn'); if (pw.length < 6) return say('пароль — минимум 6 символов', 'warn');
+    if (users().some(u => u.login.toLowerCase() === lg.toLowerCase())) return say('такой логин уже есть', 'warn');
+    users().push(await makeUser(lg, nm, pw)); log('Вход', `Добавлен пользователь ${lg}`); await save(); renderUsers(); say(`Добавлен ${lg} ✅`, 'ok');
+  };
+  $$('#users [data-del]').forEach(b => b.onclick = async () => { const u = users()[+b.dataset.del]; if (!confirm(`Удалить пользователя ${u.login}?`)) return; DB.users.splice(+b.dataset.del, 1); for (const k in DB.sessions || {}) if (DB.sessions[k].login === u.login) delete DB.sessions[k]; log('Вход', `Удалён пользователь ${u.login}`); await save(); renderUsers(); });
+  $$('#users [data-edit]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.edit, u = users()[i], row = b.closest('.userRow');
+    row.innerHTML = `<b>${h(u.login)}</b><input class="uline" id="euName" value="${h(u.name)}" placeholder="имя" style="max-width:220px"><input class="uline" id="euPass" type="password" placeholder="новый пароль (не обязательно)" autocomplete="new-password" style="max-width:260px"><span style="flex:1"></span><button class="lnk" id="euSave">сохранить</button><button class="lnk" id="euCancel">отмена</button>`;
+    row.querySelector('#euCancel').onclick = () => { document.activeElement.blur(); renderUsers(); };
+    row.querySelector('#euSave').onclick = async () => {
+      const nm = row.querySelector('#euName').value.trim(), pw = row.querySelector('#euPass').value;
+      if (pw && pw.length < 6) return say('пароль — минимум 6 символов', 'warn');
+      if (nm) u.name = nm; if (pw) { u.salt = rnd(16); u.hash = await pwHash(pw, u.salt); }
+      log('Вход', `Изменён пользователь ${u.login}${pw ? ' (новый пароль)' : ''}`); await save(); document.activeElement.blur(); renderUsers();
+      if (ME && ME.login === u.login) { ME = u; $('#who').textContent = shortName(u.name); }
+      say('Сохранено ✅', 'ok');
+    };
+  });
+}
+
 (async () => {
-  $('.brand small').textContent = 'подключаюсь к расширению…';
   const v = await N.hasBridge();
-  if (!v) { document.body.innerHTML = `<main style="max-width:640px;margin:60px auto;font:15px/1.5 -apple-system,Segoe UI,sans-serif"><h1>Нужно расширение-мост</h1><p>Кабинет работает через расширение «conтекст store — кабинет витрины (мост)» в этом Chrome: оно ходит в 4Partners и TgShop через ваши входы и хранит базу на этом компьютере.</p><p>Установите его по инструкции из чата и обновите эту страницу.</p><p style="color:#6b6b73">Если уже установили: откройте chrome://extensions — у расширения должно быть название «…(мост)» и версия 3.1.0. Если там «кабинет витрины 2.0», значит, файлы не заменились — распакуйте архив в ту же папку и нажмите «Обновить» (круглая стрелка).</p></main>`; return; }
-  $('.brand small').textContent = 'кабинет витрины · ' + APP_VERSION + ' · мост ' + v;
-  BRIDGE_V = v; await load(); render();
+  document.body.classList.remove('booting');
+  if (!v) { document.body.innerHTML = `<main style="max-width:640px;margin:60px auto;padding:0 20px;font:18px/1.4 'Arial Narrow','Roboto Condensed',sans-serif;color:#5a5965"><h1>Нужно расширение-мост</h1><p>Кабинет работает через расширение «conтекст store — кабинет витрины (мост)» в этом Chrome: оно ходит в 4Partners и TgShop через ваши входы и хранит базу на этом компьютере.</p><p>Установите его по инструкции и обновите эту страницу.</p><p style="opacity:.6">Если уже установили: откройте chrome://extensions — у расширения должно быть название «…(мост)» и версия 3.1.0 или новее, и оно должно быть включено.</p></main>`; return; }
+  $('#ver').textContent = 'кабинет витрины ' + APP_VERSION + ' · мост ' + v;
+  BRIDGE_V = v; await load();
   if (DB.settings.autoOn) applyAuto(false);
-  if (new URLSearchParams(location.search).get('auto')) { document.title = '🤖 Автообновление витрины'; await autoCheck(); setTimeout(() => N.bridge('closeMe').catch(() => { }), 8000); }
-  else autoCheck();
+  if (new URLSearchParams(location.search).get('auto')) {
+    // фоновая вкладка расписания: без входа, интерфейс закрыт заставкой
+    document.title = '🤖 Автообновление витрины'; $('#autoVeil').classList.remove('hidden'); $('#scrApp').classList.remove('hidden'); render();
+    await autoCheck(); setTimeout(() => N.bridge('closeMe').catch(() => { }), 8000); return;
+  }
+  ME = currentUser(); ME ? enterApp() : showAuth();
+  autoCheck();
 })();
