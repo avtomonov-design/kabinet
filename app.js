@@ -1,4 +1,4 @@
-const APP_VERSION = '4.2.1';
+const APP_VERSION = '4.2.2';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -49,7 +49,7 @@ async function notify(text) { try { await N.telegram(DB.settings.tgBot, DB.setti
 function tab(name) { $$('nav button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name)); $$('.tab').forEach(t => t.classList.toggle('on', t.id === name)); render(); window.scrollTo({ top: 0, behavior: 'instant' }); }
 $$('nav button[data-tab]').forEach(b => b.onclick = () => tab(b.dataset.tab));
 function screen(id) { ['scrAuth', 'scrHelp', 'scrSupport'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id)); }
-$$('nav button[data-screen]').forEach(b => b.onclick = () => { if (b.dataset.screen === 'scrHelp') { $('#helpText').innerHTML = window.HELP_HTML || ''; $('#helpText').scrollTop = 0; } screen(b.dataset.screen); setTimeout(() => thumbs.forEach(t => t()), 30); });
+$$('nav button[data-screen]').forEach(b => b.onclick = () => { if (b.dataset.screen === 'scrHelp') { $('#helpText').innerHTML = window.HELP_HTML || ''; $('#helpText').scrollTop = 0; } screen(b.dataset.screen); setTimeout(() => { thumbs.forEach(t => t()); helpFade(); }, 30); });
 $$('[data-close]').forEach(b => b.onclick = () => screen(null));
 // часы на экранах входа, инструкции и поддержки
 const tick = () => { const t = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); $$('.clock').forEach(e => e.textContent = t); };
@@ -647,6 +647,9 @@ function makeThumb(box, th, pad = 70) {
   box.addEventListener('scroll', upd, { passive: true }); new ResizeObserver(upd).observe(box); new MutationObserver(upd).observe(box, { childList: true, subtree: true }); return upd;
 }
 const thumbs = [makeThumb($('#dlgBody'), $('#pThumb')), makeThumb($('#helpText'), $('#helpThumb'), 90)];
+// затухания инструкции: сверху — по мере прокрутки вниз, снизу — пока есть что листать
+function helpFade() { const b = $('#helpText'), L = 154 * uPx(), max = b.scrollHeight - b.clientHeight; b.style.setProperty('--ft', Math.min(b.scrollTop / L, 1).toFixed(3)); b.style.setProperty('--fb', max <= 0 ? 0 : Math.min((max - b.scrollTop) / L, 1).toFixed(3)); }
+$('#helpText').addEventListener('scroll', helpFade, { passive: true }); addEventListener('resize', helpFade);
 
 // ---------- вход: логин и пароль ----------
 // Пользователи и сессии лежат в базе моста (на этом компьютере). Сессия — cookie без срока: живёт до закрытия браузера.
