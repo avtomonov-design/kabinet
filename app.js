@@ -1,4 +1,4 @@
-const APP_VERSION = '4.1.1';
+const APP_VERSION = '4.2.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -638,8 +638,12 @@ window.addEventListener('message', e => { if (e.source === window && e.data && e
 setInterval(() => { if (DB.cards.length) autoCheck(); }, 60000);
 
 // ---------- короткий бегунок прокрутки (6×59, как в макете) и плавная прокрутка колесом ----------
+// резиновая вёрстка: 1px макета (ширина 1360) = доля ширины окна без полосы прокрутки
+function uPx() { return Math.max(document.documentElement.clientWidth, 1024) / 1360; }
+function setU() { document.documentElement.style.setProperty('--u', uPx() + 'px'); }
+setU(); addEventListener('resize', setU);
 function makeThumb(box, th, pad = 70) {
-  const upd = () => { if (!th.offsetParent) return; const max = box.scrollHeight - box.clientHeight; if (max < 4) return th.classList.remove('on'); th.classList.add('on'); const r = box.getBoundingClientRect(), pr = th.offsetParent.getBoundingClientRect(), track = box.clientHeight - pad * 2 - 59; th.style.top = (r.top - pr.top + pad + track * (box.scrollTop / max)) + 'px'; };
+  const upd = () => { if (!th.offsetParent) return; const max = box.scrollHeight - box.clientHeight; if (max < 4) return th.classList.remove('on'); th.classList.add('on'); const r = box.getBoundingClientRect(), pr = th.offsetParent.getBoundingClientRect(), U = uPx(), track = box.clientHeight - pad * U * 2 - th.offsetHeight; th.style.top = (r.top - pr.top + pad * U + track * (box.scrollTop / max)) + 'px'; };
   box.addEventListener('scroll', upd, { passive: true }); new ResizeObserver(upd).observe(box); new MutationObserver(upd).observe(box, { childList: true, subtree: true }); return upd;
 }
 const thumbs = [makeThumb($('#dlgBody'), $('#pThumb')), makeThumb($('#helpText'), $('#helpThumb'), 90)];
