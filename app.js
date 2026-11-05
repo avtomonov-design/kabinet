@@ -1,4 +1,4 @@
-const APP_VERSION = '4.3.0';
+const APP_VERSION = '4.4.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -39,7 +39,7 @@ const P = () => C.markupOf(DB.settings);
 const card = id => DB.cards.find(c => c.id === id);
 let PS = { sel: null, t: '', t0: 0 };
 const prog = (sel, t) => { if (PS.sel !== sel) PS.t0 = Date.now(); PS = { sel, t, t0: PS.t0 || Date.now() }; const el = $(sel); if (el) el.textContent = t; };
-setInterval(() => { if (!busy || !PS.sel || !PS.t) return; const el = $(PS.sel); if (el) el.textContent = PS.t + ' · ' + Math.round((Date.now() - PS.t0) / 1000) + ' с'; }, 1000);
+setInterval(() => { if (!busy || !PS.sel || !PS.t) return; const el = $(PS.sel); if (el) el.textContent = PS.t.replace(/…$/, '') + ' · ' + Math.round((Date.now() - PS.t0) / 1000) + 'с'; }, 1000);
 async function ghPreflight() { if (!ghReady()) throw new Error('Подключите GitHub в настройках — фото хранятся там'); if (!ghPreflight.ok) { await N.ghCheck(DB.settings.ghToken, DB.settings.ghPhotos); ghPreflight.ok = true; } }
 const figmaKey = () => C.figmaKeyFromUrl(DB.settings.figmaUrl), figmaRoot = () => C.figmaNodeFromUrl(DB.settings.figmaUrl);
 const ghReady = () => DB.settings.ghToken && DB.settings.ghPhotos;
@@ -368,7 +368,7 @@ if ($('#bAdd')) $('#bAdd').onclick = () => modal(`<h2>Добавить карт�
 $('#bUpdate').onclick = runUpdate;
 async function runUpdate(auto) {
   if (busy) return null; if (!DB.cards.length) return auto ? null : migrate(); let res = null;
-  busy = true; modal('<h2>Обновление цен и остатков</h2><div class="progress" id="uProg">Снимаю цены и наличие у 4Partners…</div><div id="uOut"></div>');
+  busy = true; modal('<h2>инвентаризация</h2><div class="progress" id="uProg">Снимаю цены и наличие у 4Partners…</div><div id="uOut"></div>');
   try {
     const list = DB.cards.filter(c => c.link), links = [...new Set(list.map(c => c.link))];
     const data = await N.fetch4P(links, (a, b) => prog('#uProg', `Снимаю цены и наличие у 4Partners: ${a} из ${b}…`));
@@ -387,7 +387,7 @@ async function runUpdate(auto) {
       if (r.soldOut) R.soldOut.push(c.name); if (r.back) R.back.push(c.name);
     }
     const after = { live: DB.cards.reduce((a, c) => a + C.liveSizes(c).length, 0), sold: DB.cards.filter(c => c.status.soldOutSince).length };
-    DB.lastUpdate = new Date().toISOString(); DB.lastReport = { at: DB.lastUpdate, before, after, R };
+    DB.lastUpdate = new Date().toISOString(); DB.lastReport = { at: DB.lastUpdate, before, after, R, sec: Math.round((Date.now() - PS.t0) / 1000) };
     const pr = R.changes.filter(c => c.oSt && c.nSt && c.oJ !== c.nJ);
     log('Цены', `Цен изменилось ${pr.length}, закончилось ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось ${R.changes.filter(c => !c.oSt && c.nSt).length}, новых размеров ${R.added.length}, ошибок ${R.errors.length}`);
     await save(); render(); prog('#uProg', ''); showReport(DB.lastReport, true);
@@ -408,18 +408,23 @@ function showReport(rep, fresh) {
   const ended = R.changes.filter(c => c.oSt && !c.nSt), appeared = R.changes.filter(c => !c.oSt && c.nSt), big = pr.filter(c => Math.abs(c.nJ - c.oJ) / c.oJ >= 0.05);
   const avg = pr.length ? (pr.reduce((s, c) => s + (c.nJ - c.oJ) / c.oJ, 0) / pr.length * 100).toFixed(1) : '0';
   const cl = c => c === '1016' ? 'Д' : 'П', line = c => `${h(c.name)} ${cl(c.cat)} ${h(c.sz)}`;
-  let html = `<table class="t"><tr><th>Показатель</th><th>Было</th><th>Стало</th></tr><tr><td>Размеров в продаже</td><td class="n">${fmt(b.live)}</td><td class="n">${fmt(a.live)}</td></tr><tr><td>Распроданных карточек</td><td class="n">${b.sold}</td><td class="n">${a.sold}</td></tr><tr><td>Изменений цены</td><td>—</td><td class="n">${pr.length} (↑${up}, ↓${pr.length - up}, в среднем ${avg}%)</td></tr><tr><td>Закончилось / появилось размеров</td><td>—</td><td class="n">${ended.length} / ${appeared.length}</td></tr><tr><td>Новых размеров добавлено</td><td>—</td><td class="n">${R.added.length}</td></tr></table>`;
+  const st = R.errors.length ? `не обновились ${R.errors.length} — их данные не тронуты` : (pr.length || ended.length || appeared.length || R.added.length) ? 'обновилось без ошибок — проверьте и выгрузите' : 'у 4Partners ничего не поменялось, ошибок нет';
+  const row = (t, was, now) => `<tr><td>${t}</td><td>${was}</td><td>${now}</td></tr>`;
+  let html = `<div class="msg st ${R.errors.length ? 'bad' : ''}">${st}</div><table class="t inv"><colgroup><col class="c1"><col class="c2"><col></colgroup><tr><th>Показатель</th><th>Было</th><th>Стало</th></tr>`
+    + row('размеров в продаже', fmt(b.live), fmt(a.live)) + row('распроданных карточек', b.sold, a.sold)
+    + row(`изменений цены${pr.length ? ` · ↑${up} ↓${pr.length - up}, в среднем ${avg}%` : ''}`, '—', pr.length)
+    + row('закончилось размеров', '—', ended.length) + row('появилось размеров', '—', appeared.length) + row('новых размеров', '—', R.added.length) + row('ошибок', '—', R.errors.length) + `</table>`;
   if (R.errors.length) html += `<div class="msg bad"><b>Не обновились (данные не тронуты):</b><br>${R.errors.map(h).join('<br>')}</div>`;
   if (rep.stray && rep.stray.length) html += `<div class="msg warn">На витрине TgShop есть товары, которых нет в кабинете: ${rep.stray.map(h).join(', ')}. При полной выгрузке они будут удалены.</div>`;
   if (R.soldOut.length) html += `<div class="msg warn"><b>Распродались целиком:</b> ${R.soldOut.map(h).join(', ')} — останутся на витрине с остатком 0.</div>`;
   if (R.back.length) html += `<div class="msg ok"><b>Вернулись в продажу:</b> ${R.back.map(h).join(', ')}</div>`;
   if (R.notes.length) html += `<div class="msg warn">${R.notes.map(h).join('<br>')}</div>`;
-  if (big.length) html += `<details open><summary>Цена изменилась на 5% и больше — ${big.length}</summary>${big.map(c => `${line(c)}: ${fmt(c.oJ + P0)} → ${fmt(c.nJ + P0)} ₽ (${((c.nJ - c.oJ) / c.oJ * 100).toFixed(1)}%)`).join('<br>')}</details>`;
-  if (ended.length) html += `<details><summary>Закончились — ${ended.length}</summary>${ended.map(line).join('<br>')}</details>`;
-  if (appeared.length) html += `<details><summary>Появились — ${appeared.length}</summary>${appeared.map(line).join('<br>')}</details>`;
-  if (R.added.length) html += `<details><summary>Новые размеры — ${R.added.length}</summary>${R.added.map(line).join('<br>')}</details>`;
-  modal(`<h2>Цены и остатки — ${dstr(rep.at)}</h2>${html}<div class="acts"><button id="rUndo" ${DB.undo ? '' : 'disabled'}>Откатить</button><button id="rXlsx">Отчёт .xlsx</button><span style="flex:1"></span><button id="rClose">Закрыть</button><button class="primary" id="rExp">Выгрузить на витрину</button></div>`, root => {
-    root.querySelector('#rClose').onclick = closeModal; root.querySelector('#rExp').onclick = openExport;
+  if (big.length) html += `<details open><summary>цена изменилась на 5% и больше — ${big.length}</summary>${big.map(c => `${line(c)}: ${fmt(c.oJ + P0)} → ${fmt(c.nJ + P0)} ₽ (${((c.nJ - c.oJ) / c.oJ * 100).toFixed(1)}%)`).join('<br>')}</details>`;
+  if (ended.length) html += `<details><summary>закончились — ${ended.length}</summary>${ended.map(line).join('<br>')}</details>`;
+  if (appeared.length) html += `<details><summary>появились — ${appeared.length}</summary>${appeared.map(line).join('<br>')}</details>`;
+  if (R.added.length) html += `<details><summary>новые размеры — ${R.added.length}</summary>${R.added.map(line).join('<br>')}</details>`;
+  modal(`<h2>инвентаризация</h2><div class="sub">обновлено ${dstr(rep.at)}${rep.sec ? ` · ${rep.sec}с` : ''}</div>${html}<div class="acts two"><button id="rUndo" ${DB.undo ? '' : 'disabled'}>откатить назад</button><button id="rXlsx">скачать .xlsx</button><button class="primary" id="rExp">выгрузить на витрину</button></div>`, root => {
+    root.querySelector('#rExp').onclick = openExport;
     root.querySelector('#rUndo').onclick = async () => { if (!confirm('Вернуть карточки к состоянию до обновления?')) return; DB.cards = JSON.parse(DB.undo); DB.undo = null; log('Цены', 'Откат обновления'); await save(); render(); closeModal(); };
     root.querySelector('#rXlsx').onclick = () => {
       const rows = [['Модель', 'Д/П', 'Размер', 'Было, ₽', 'Стало, ₽', 'Изменение, %', 'Событие']];

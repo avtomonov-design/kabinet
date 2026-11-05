@@ -89,7 +89,9 @@ html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden;
 .contacts a { text-decoration: none; }
 .contacts + .bigLink { margin-top: 0; }
 /* инструкция: колонка calc(349 * var(--u)) с отступом calc(40 * var(--u)), заголовок закреплён, сверху и снизу мягкие затемнения по calc(194 * var(--u)) */
-.help-r { align-items: stretch; padding: 0 calc(40 * var(--u)) calc(18 * var(--u)) calc(40 * var(--u)); }
+.help-r { align-items: stretch; padding: 0 calc(40 * var(--u)) 0 calc(40 * var(--u)); }
+/* текст уходит под нижнюю строку (часы, «завершить»), как в макете — без жёсткого обреза */
+.help-r .helpFoot { position: absolute; left: calc(40 * var(--u)); right: calc(40 * var(--u)); bottom: calc(18 * var(--u)); }
 .helpHead { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.01em; color: transparent; background-origin: content-box; padding-top: calc(13 * var(--u)); position: relative; z-index: 1; }
 .helpText { flex: 1; min-height: 0; overflow-y: auto; margin: calc(-48 * var(--u)) calc(-12 * var(--u)) 0 0; padding: calc(60 * var(--u)) calc(12 * var(--u)) calc(150 * var(--u)) 0; font-size: calc(18 * var(--u)); line-height: 1.17; color: var(--ink); scrollbar-width: none;
   }
@@ -98,7 +100,7 @@ html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden;
 .help-r::before, .help-r::after { content: ""; position: absolute; left: 0; right: 0; height: calc(194 * var(--u)); pointer-events: none; z-index: 1; transition: opacity .15s linear; }
 .help-r::before { top: 0; background: linear-gradient(to bottom, #d9d9d9, rgba(217, 217, 217, 0)); opacity: var(--ft); }
 .help-r::after { bottom: 0; background: linear-gradient(to top, #d9d9d9, rgba(217, 217, 217, 0)); opacity: var(--fb); }
-.help-r .helpHead, .help-r .helpFoot { position: relative; z-index: 2; }
+.help-r .helpHead { position: relative; z-index: 2; } .help-r .helpFoot { z-index: 2; }
 .helpText::-webkit-scrollbar { display: none; }
 .helpText h2 { display: none; }
 .helpText h3 { font: 400 calc(22 * var(--u))/1.1 var(--narrow); margin: calc(28 * var(--u)) 0 calc(10 * var(--u)); }
@@ -251,6 +253,19 @@ body.pOpen #dlgBody > * { animation: riseIn .45s .06s cubic-bezier(.2,.7,.2,1) b
 #dlgBody table.t th { text-align: left; font-weight: 400; opacity: .5; height: calc(33 * var(--u)); padding: 0; vertical-align: top; }
 #dlgBody table.t td { height: calc(45 * var(--u)); padding: 0 calc(8 * var(--u)) 0 0; border-top: 1px solid var(--line-t); font-size: calc(18 * var(--u)); vertical-align: middle; }
 #dlgBody table.t td:first-child { width: calc(237 * var(--u)); }
+/* инвентаризация: показатель | было (по центру) | стало (вправо), строки от 45, длинные подписи переносятся */
+#dlgBody table.inv { table-layout: fixed; }
+#dlgBody table.inv col.c1 { width: calc(231 * var(--u)); } #dlgBody table.inv col.c2 { width: calc(80 * var(--u)); }
+#dlgBody table.inv td { vertical-align: top; padding: calc(12 * var(--u)) 0; height: calc(45 * var(--u)); line-height: calc(21 * var(--u)); }
+#dlgBody table.inv td:first-child { width: auto; padding-right: calc(42 * var(--u)); }
+#dlgBody table.inv tr:first-child td { border-top: 1px solid var(--line-t); }
+#dlgBody table.inv th:nth-child(2), #dlgBody table.inv td:nth-child(2) { text-align: center; }
+#dlgBody table.inv th:nth-child(3), #dlgBody table.inv td:nth-child(3) { text-align: right; }
+#dlgBody .msg.st { padding: calc(11 * var(--u)); }
+#dlgBody .acts.two { flex-wrap: wrap; }
+#dlgBody .acts.two button { flex: 1 1 calc(50% - 4.5 * var(--u)); }
+#dlgBody .acts.two button:not(.primary) { background: #f9f9f9; }
+#dlgBody .acts.two button.primary { flex-basis: 100%; }
 #dlgBody .list { margin: 0 0 calc(22 * var(--u)); border-top: 1px solid var(--line-t); padding-top: calc(12 * var(--u)); display: flex; flex-direction: column; gap: calc(12 * var(--u)); }
 #dlgBody .list span { line-height: calc(21 * var(--u)); }
 #dlgBody details { margin: 0 0 calc(22 * var(--u)); border-top: 1px solid var(--line-t); padding-top: calc(12 * var(--u)); }
