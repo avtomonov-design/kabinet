@@ -1,4 +1,4 @@
-const APP_VERSION = '4.2.7';
+const APP_VERSION = '4.3.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -648,7 +648,7 @@ function makeThumb(box, th, pad = 70) {
 }
 const thumbs = [makeThumb($('#dlgBody'), $('#pThumb')), makeThumb($('#helpText'), $('#helpThumb'), 90)];
 // затухания инструкции: сверху — по мере прокрутки вниз, снизу — пока есть что листать
-function helpFade() { const b = $('#helpText'), L = 154 * uPx(), max = b.scrollHeight - b.clientHeight; b.style.setProperty('--ft', Math.min(b.scrollTop / L, 1).toFixed(3)); b.style.setProperty('--fb', max <= 0 ? 0 : Math.min((max - b.scrollTop) / L, 1).toFixed(3)); }
+function helpFade() { const b = $('#helpText'), p = b.parentElement, L = 154 * uPx(), max = b.scrollHeight - b.clientHeight; p.style.setProperty('--ft', Math.min(b.scrollTop / L, 1).toFixed(3)); p.style.setProperty('--fb', max <= 0 ? 0 : Math.min((max - b.scrollTop) / L, 1).toFixed(3)); }
 $('#helpText').addEventListener('scroll', helpFade, { passive: true }); addEventListener('resize', helpFade);
 
 // ---------- вход: логин и пароль ----------

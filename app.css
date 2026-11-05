@@ -6,11 +6,14 @@
   --narrow: "Arial Narrow", "ArialNarrow", "Roboto Condensed", "Arial", sans-serif;
   --serif: "KabSerif", "Century Schoolbook", "New Century Schoolbook", "Georgia", serif;
   --ink: #595864;                     /* тёмный текст (градиент #696873→#53515e в макете) */
-  --g-light: linear-gradient(165deg, rgba(255, 255, 255, 0.88) 2.8795%, rgba(226, 226, 226, 0.88) 48.771%, rgba(219, 219, 219, 0.88) 117.5%);
-  --g-side: linear-gradient(to bottom, #97979f 0%, #8b8a94 16.7%, #83828c 27.8%, #787782 41.7%, #6f6e79 55.6%, #656470 69.4%, #5b5865 83.3%, #53515e 97.2%, #53515e 100%);
+  /* светлый градиент макета (#fff → #e2e2e2 → #dbdbdb, transform 0.431/0.3997) — пересчитан под размер каждого текстового блока Figma */
+  /* фон тёмной части — точный градиент макета (рамка 874 выс., ось 2601.58 → −430.74) поверх белого */
+  --g-side: linear-gradient(to bottom, #c7c8cd calc(-430.74 * var(--u)), rgba(95, 93, 106, .92) calc(431.24 * var(--u)), #53515e calc(671.85 * var(--u)), #54525e calc(903.2 * var(--u)), #696873 calc(1630.25 * var(--u))), #fff;
   --btn: #5f5d6a;
   --btn-tx: rgba(240, 240, 240, .92);
-  --g-auth: linear-gradient(150.28deg, #fff 2.8795%, #e2e2e2 48.771%, #dbdbdb 117.5%);
+  --g-auth: linear-gradient(150.28deg, #fff calc(-37.39 * var(--u)), #e2e2e2 calc(633.82 * var(--u)), #dbdbdb calc(1527 * var(--u))) 0 0 / calc(1360 * var(--u)) calc(720 * var(--u)) no-repeat, #dbdbdb;
+  /* тёмный текст 32px: градиент макета (#53515e сверху → #696873 вниз) */
+  --g-dark: linear-gradient(to bottom, rgba(95, 93, 106, .92) -36%, #53515e .93%, #54525e 36.5%, #696873 148.3%);
   --line: #54525e;
   --line-t: rgba(84, 82, 94, .3);     /* линии таблиц и списков — 30% как в макете */
   --line-u: rgba(84, 82, 94, .7);     /* подчёркивания полей — 70% как в макете */
@@ -31,7 +34,8 @@ input, select, textarea { font: inherit; color: var(--ink); }
 a { color: var(--link); }
 .hidden { display: none !important; }
 .tx-d { color: var(--ink); }
-.tx-l { background: var(--g-light); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tx-d, .helpHead { background: var(--g-dark); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tx-l { -webkit-background-clip: text; background-clip: text; color: transparent; background-repeat: no-repeat; }
 .dim { opacity: .5; }
 
 /* анимации: только «появление», конечное состояние не трогаем (чтобы не перебивать прозрачность элементов) */
@@ -43,17 +47,29 @@ a { color: var(--link); }
 html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden; scrollbar-gutter: auto; }
 .split { position: fixed; inset: 0; display: flex; background: var(--g-auth); z-index: 50; animation: fadeIn .5s ease; }
 .split-l { position: relative; flex: 1 1 auto; min-width: 0; background: var(--g-side); overflow: hidden; }
-.split .logo, .side .logo { position: absolute; left: calc(19 * var(--u)); top: calc(13 * var(--u)); font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.32px; white-space: nowrap; mix-blend-mode: overlay; }
+.split .logo, .side .logo { position: absolute; left: calc(19 * var(--u)); top: calc(13 * var(--u)); font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.01em; white-space: nowrap; mix-blend-mode: overlay;
+  background: linear-gradient(160.4deg, rgba(255,255,255,.96) calc(-1.97 * var(--u)), rgba(226,226,226,.96) calc(33.42 * var(--u)), rgba(219,219,219,.96) calc(80.52 * var(--u))) 0 0 / calc(106 * var(--u)) calc(35 * var(--u)) no-repeat; -webkit-background-clip: text; background-clip: text; }
+.side .logo { background: linear-gradient(160.4deg, #fff calc(-1.97 * var(--u)), #e2e2e2 calc(33.42 * var(--u)), #dbdbdb calc(80.52 * var(--u))) 0 0 / calc(106 * var(--u)) calc(35 * var(--u)) no-repeat; -webkit-background-clip: text; background-clip: text; }
 /* галочка закреплена за правый верхний угол левой части и масштабируется вместе с ней */
 .vline { position: absolute; left: 15.442%; top: 0; margin-top: -10.875%; width: 94.703%; height: auto; pointer-events: none; animation: fadeIn 1s .1s ease both; }
 .vl1 { mix-blend-mode: overlay; } .vl2 { mix-blend-mode: soft-light; }
-.serif { position: absolute; left: calc(25 * var(--u)); bottom: calc(30 * var(--u)); font: calc(84 * var(--u))/1.19 var(--serif);  letter-spacing: -0.02em; white-space: nowrap;
-  background: linear-gradient(151.8deg, rgba(255, 255, 255, 0.92) 2.88%, rgba(226, 226, 226, 0.92) 48.77%, rgba(219, 219, 219, 0.92) 117.5%); -webkit-background-clip: text; background-clip: text; color: transparent;
+.serif { position: absolute; left: calc(25 * var(--u)); bottom: calc(0.37 * var(--u)); font: calc(84 * var(--u))/calc(101 * var(--u)) var(--serif); letter-spacing: -0.02em; white-space: nowrap;
+  /* как в макете: два слоя текста в режиме overlay — 1) светлый градиент, 2) светлый 88% поверх тёмного #2e2e2e→#383838.
+     Плитка градиента = текстовый блок Figma (верх блока = 1-я базовая линия − 57.79) */
+  mix-blend-mode: overlay; -webkit-background-clip: text; background-clip: text; color: transparent; background-repeat: no-repeat; background-position: 0 calc(8.37 * var(--u));
+  --sw: 442; --sh: 159; --sa: 158.8deg; --s0: -8.86; --s1: 150.26; --s2: 362.01;
+  background-size: calc(var(--sw) * var(--u)) calc(var(--sh) * var(--u));
+  background-image: linear-gradient(var(--sa), #fff calc(var(--s0) * var(--u)), #e2e2e2 calc(var(--s1) * var(--u)), #dbdbdb calc(var(--s2) * var(--u)));
+  background-color: #dfdfdf;
   animation: riseIn .9s .1s cubic-bezier(.2,.7,.2,1) both; }
+.serif.s2 { background-image: linear-gradient(var(--sa), rgba(255,255,255,.88) calc(var(--s0) * var(--u)), rgba(226,226,226,.88) calc(var(--s1) * var(--u)), rgba(219,219,219,.88) calc(var(--s2) * var(--u))), linear-gradient(to bottom, #2e2e2e, #383838); background-color: #cbcbcb; }
+#scrAuth .serif { --sw: 320; --sa: 151.82deg; --s0: -8.38; --s1: 142.06; --s2: 342.26; }
+#scrSupport .serif { --sw: 146; --sh: 58; --sa: 156.81deg; --s0: -3.19; --s1: 54.04; --s2: 130.2; }
 .split-r { position: relative; flex: 0 0 calc(427 * var(--u)); display: flex; flex-direction: column; align-items: flex-end; padding: calc(13 * var(--u)) calc(42 * var(--u)) calc(18 * var(--u)) calc(20 * var(--u)); }
 .split-r > * { animation: riseIn .7s .15s cubic-bezier(.2,.7,.2,1) both; }
-.clock, .bigLink, .contacts a, .authIn { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.32px; color: var(--ink); }
+.clock, .bigLink, .contacts a, .authIn { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.01em; color: var(--ink); }
 .bigLink { margin-top: auto; text-align: right; }
+.clock.tx-d, .bigLink.tx-d, .contacts a.tx-d, .helpHead { color: transparent; }
 .authFields { margin: auto 0; display: flex; flex-direction: column; align-items: flex-end; gap: calc(22 * var(--u)); width: 100%; }
 .authFields + .authErr + .bigLink { margin-top: 0; }
 .authIn { width: 100%; border: 0; background: transparent; outline: none; text-align: right; caret-color: var(--ink); padding: 0; }
@@ -74,11 +90,15 @@ html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden;
 .contacts + .bigLink { margin-top: 0; }
 /* инструкция: колонка calc(349 * var(--u)) с отступом calc(40 * var(--u)), заголовок закреплён, сверху и снизу мягкие затемнения по calc(194 * var(--u)) */
 .help-r { align-items: stretch; padding: 0 calc(40 * var(--u)) calc(18 * var(--u)) calc(40 * var(--u)); }
-.helpHead { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.32px; color: var(--ink); padding-top: calc(13 * var(--u)); position: relative; z-index: 1; }
+.helpHead { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.01em; color: transparent; background-origin: content-box; padding-top: calc(13 * var(--u)); position: relative; z-index: 1; }
 .helpText { flex: 1; min-height: 0; overflow-y: auto; margin: calc(-48 * var(--u)) calc(-12 * var(--u)) 0 0; padding: calc(60 * var(--u)) calc(12 * var(--u)) calc(150 * var(--u)) 0; font-size: calc(18 * var(--u)); line-height: 1.17; color: var(--ink); scrollbar-width: none;
-  /* верхняя подложка появляется только когда текст уехал вверх, нижняя исчезает в конце */
-  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,calc(1 - var(--ft, 0))) 0, rgba(0,0,0,calc(1 - var(--ft, 0))) calc(40 * var(--u)), #000 calc(194 * var(--u)), #000 calc(100% - calc(194 * var(--u))), rgba(0,0,0,calc(1 - var(--fb, 1))) 100%);
-  mask-image: linear-gradient(to bottom, rgba(0,0,0,calc(1 - var(--ft, 0))) 0, rgba(0,0,0,calc(1 - var(--ft, 0))) calc(40 * var(--u)), #000 calc(194 * var(--u)), #000 calc(100% - calc(194 * var(--u))), rgba(0,0,0,calc(1 - var(--fb, 1))) 100%); }
+  }
+/* подложки как в макете: #d9d9d9 → прозрачный, по 194 сверху и снизу. Верхняя появляется, когда текст уехал вверх, нижняя исчезает в конце */
+.help-r { --ft: 0; --fb: 1; }
+.help-r::before, .help-r::after { content: ""; position: absolute; left: 0; right: 0; height: calc(194 * var(--u)); pointer-events: none; z-index: 1; transition: opacity .15s linear; }
+.help-r::before { top: 0; background: linear-gradient(to bottom, #d9d9d9, rgba(217, 217, 217, 0)); opacity: var(--ft); }
+.help-r::after { bottom: 0; background: linear-gradient(to top, #d9d9d9, rgba(217, 217, 217, 0)); opacity: var(--fb); }
+.help-r .helpHead, .help-r .helpFoot { position: relative; z-index: 2; }
 .helpText::-webkit-scrollbar { display: none; }
 .helpText h2 { display: none; }
 .helpText h3 { font: 400 calc(22 * var(--u))/1.1 var(--narrow); margin: calc(28 * var(--u)) 0 calc(10 * var(--u)); }
@@ -91,7 +111,15 @@ html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden;
 .app { min-height: 100vh; }
 .side { position: fixed; left: 0; top: 0; bottom: 0; width: var(--side); background: var(--g-side); z-index: 5; }
 .side nav { position: absolute; left: calc(19 * var(--u)); top: calc(121 * var(--u)); display: flex; flex-direction: column; gap: calc(20 * var(--u)); align-items: flex-start; }
-.side nav button, .side .who { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.32px; text-align: left; white-space: nowrap; background: var(--g-light); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.side nav button, .side .who { font: 700 calc(32 * var(--u))/1.08 var(--narrow); letter-spacing: -0.01em; text-align: left; white-space: nowrap; color: transparent;
+  /* светлый градиент 88%, плитка = текстовый блок Figma (161×35, журнал 95, настройки 133, имя 130) */
+  --nw: 161; --na: 166.81deg; --n0: -2.04; --n1: 34.54; --n2: 83.22;
+  background: linear-gradient(var(--na), rgba(255,255,255,.88) calc(var(--n0) * var(--u)), rgba(226,226,226,.88) calc(var(--n1) * var(--u)), rgba(219,219,219,.88) calc(var(--n2) * var(--u))) 0 0 / calc(var(--nw) * var(--u)) calc(35 * var(--u)) no-repeat,
+    linear-gradient(rgba(219,219,219,.88), rgba(219,219,219,.88)) calc(var(--nw) * var(--u)) 0 / 100% 100% no-repeat;   /* за пределами блока макета (длинное имя) — цвет конца градиента */
+  -webkit-background-clip: text; background-clip: text; }
+.side nav button[data-tab=log] { --nw: 95; --na: 158.33deg; --n0: -1.94; --n1: 32.97; --n2: 79.43; }
+.side nav button[data-tab=settings] { --nw: 133; --na: 164.16deg; --n0: -2.01; --n1: 34.13; --n2: 82.23; }
+.side .who { --nw: 130; --na: 163.81deg; --n0: -2.01; --n1: 34.07; --n2: 82.08; }
 .side nav button { opacity: .5; transition: opacity .25s; }
 .side nav button:hover { opacity: .75; }
 .side nav button.on { opacity: 1; }
