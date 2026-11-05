@@ -234,10 +234,11 @@ body.pOpen #dlgBody > * { animation: riseIn .45s .06s cubic-bezier(.2,.7,.2,1) b
 #dlgBody .acts > span:empty, #dlgBody .acts > span[style] { display: none; }
 #dlgBody .acts button { flex: 1 1 0; min-width: 0; height: calc(51 * var(--u)); background: #fff; font-size: calc(18 * var(--u)); line-height: .72; color: var(--ink); transition: filter .2s; }
 #dlgBody .acts button.primary { background: var(--btn); color: var(--btn-tx); }
+#dlgBody .acts #cDel { background: #f9f9f9; }
 #dlgBody .acts button:hover { filter: brightness(.97); } #dlgBody .acts button.primary:hover { filter: brightness(1.08); }
 #dlgBody .acts button:disabled { opacity: .4; cursor: default; }
 #dlgBody .acts [id$=Close], #dlgBody .acts [id$=Ok] { display: none; }
-#dlgBody .acts .chkRow { position: absolute; left: 0; right: 0; bottom: 100%; background: #fff; padding: calc(10 * var(--u)) calc(30 * var(--u)); }
+#dlgBody .acts .chkRow { position: absolute; left: 0; right: 0; bottom: 100%; background: #fff; padding: calc(10 * var(--u)) calc(30 * var(--u)); display: flex; justify-content: center; }
 
 /* карточка в панели */
 .cTitleRow { display: flex; align-items: baseline; gap: calc(5 * var(--u)); margin-right: calc(30 * var(--u)); white-space: nowrap; font: 700 calc(22 * var(--u))/1.08 var(--narrow); }
@@ -246,6 +247,7 @@ body.pOpen #dlgBody > * { animation: riseIn .45s .06s cubic-bezier(.2,.7,.2,1) b
 .cTitleRow .pos { color: var(--ink); }
 #dlgBody .cSub { opacity: 1; margin: calc(6 * var(--u)) 0 0; min-height: 0; }
 #dlgBody .cSub > span { opacity: .5; }
+#dlgBody .cSub .ok { font-family: Inter, sans-serif; font-weight: 400; font-style: normal; }
 /* лента фото: плитки 150×190, промежуток 9, листается от края до края панели */
 .strip { display: flex; gap: calc(9 * var(--u)); overflow-x: auto; margin: calc(22 * var(--u)) calc(-30 * var(--u)) calc(12 * var(--u)); padding: 0 calc(30 * var(--u)); cursor: grab; scrollbar-width: none; user-select: none; }
 .strip::after { content: ''; flex: 0 0 calc(21 * var(--u)); }

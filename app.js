@@ -1,4 +1,4 @@
-const APP_VERSION = '4.2.3';
+const APP_VERSION = '4.2.4';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -124,7 +124,7 @@ function editCard(c) {
   const figUrl = c.figma ? `https://www.figma.com/design/${c.figma.key || figmaKey()}/?node-id=${c.figma.node.replace(':', '-')}` : '';
   const ft = c.figma && c.figma.title;
   modal(`<div class="cTitleRow"><input class="cTitle" id="cName" maxlength="30" value="${h(c.name)}" title="Название на витрине — можно поправить"><span class="pos">· место ${pos}</span></div>
-  <div class="sub cSub"><span>${ft ? `в Figma: «${h(ft)}» ${ft.slice(0, 30) !== c.name ? '' : '✓'}` : 'нет трафарета в Figma'}</span>${ft && ft.slice(0, 30) !== c.name ? ' <button class="lnk" id="cNameBack">вернуть из Figma</button>' : ''}${fPos ? ` <span>· ↕ в Figma ${fPos}-я</span> <button class="lnk" id="cPlace">вернуть на место</button>` : ''}</div>
+  <div class="sub cSub"><span>${ft ? `в Figma: «${h(ft)}» ${ft.slice(0, 30) !== c.name ? '' : '<i class="ok">✓</i>'}` : 'нет трафарета в Figma'}</span>${ft && ft.slice(0, 30) !== c.name ? ' <button class="lnk" id="cNameBack">вернуть из Figma</button>' : ''}${fPos ? ` <span>· ↕ в Figma ${fPos}-я</span> <button class="lnk" id="cPlace">вернуть на место</button>` : ''}</div>
   <div class="strip" id="strip"></div>
   <div class="cPh"><span class="dim">фото меняются только в Figma</span><button class="lnk" id="cFig" ${c.figma && DB.settings.figmaToken ? '' : 'disabled'}>синхронизировать</button><span class="dim" id="cProg"></span></div>
   <div class="cFields">
