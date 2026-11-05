@@ -247,7 +247,7 @@ body.pOpen #dlgBody > * { animation: riseIn .45s .06s cubic-bezier(.2,.7,.2,1) b
 .cTitleRow .pos { color: var(--ink); }
 #dlgBody .cSub { opacity: 1; margin: calc(6 * var(--u)) 0 0; min-height: 0; }
 #dlgBody .cSub > span { opacity: .5; }
-#dlgBody .cSub .ok { font-family: Inter, sans-serif; font-weight: 400; font-style: normal; }
+#dlgBody .cSub .ok { display: inline-block; width: calc(13 * var(--u)); height: calc(9 * var(--u)); margin-left: calc(1.5 * var(--u)); vertical-align: calc(1 * var(--u)); }   /* ✓ из макета (Inter Regular 18), контуром */
 /* лента фото: плитки 150×190, промежуток 9, листается от края до края панели */
 .strip { display: flex; gap: calc(9 * var(--u)); overflow-x: auto; margin: calc(22 * var(--u)) calc(-30 * var(--u)) calc(12 * var(--u)); padding: 0 calc(30 * var(--u)); cursor: grab; scrollbar-width: none; user-select: none; }
 .strip::after { content: ''; flex: 0 0 calc(21 * var(--u)); }
