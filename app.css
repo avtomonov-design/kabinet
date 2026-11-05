@@ -156,7 +156,7 @@ main { margin-left: var(--side); min-width: 0; }
 .uline { display: block; border: 0; border-bottom: 1px solid var(--line-u); background: transparent; outline: none; height: calc(21 * var(--u)); padding: 0; font-size: calc(18 * var(--u)); width: 100%; }
 textarea { display: block; width: 100%; height: calc(76 * var(--u)); border: 1px solid var(--line-soft); background: transparent; padding: calc(12 * var(--u)); font-size: calc(18 * var(--u)); line-height: normal; resize: vertical; outline: none; }
 /* наценка: поле 189×21, крестик удаления — внутри строки, справа */
-.mkrow { position: relative; width: calc(189 * var(--u)); margin-bottom: calc(17 * var(--u)); }
+.mkrow { position: relative; width: 100%; margin-bottom: calc(17 * var(--u)); }
 .mkrow .lab input { border: 0; background: transparent; outline: none; font-size: calc(18 * var(--u)); color: var(--ink); width: 100%; padding: 0; }
 .mkrow .uline { padding-right: calc(18 * var(--u)); }
 .mkrow .del { position: absolute; right: 0; bottom: calc(3 * var(--u)); width: calc(14 * var(--u)); height: calc(14 * var(--u)); display: grid; place-items: center; opacity: .35; transition: opacity .2s; }
