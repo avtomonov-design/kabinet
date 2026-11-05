@@ -1,83 +1,123 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><title>Кабинет витрины</title><link rel="stylesheet" href="app.css?v=3.2.3">
+<head><meta charset="utf-8"><title>Кабинет витрины</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex"></head>
-<body>
-<aside>
-  <div class="brand">conтекст store<small>кабинет витрины 2.0</small></div>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Inter:wght@300&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css?v=4.0.0"></head>
+<body class="booting">
+
+<!-- экраны «во весь экран»: вход, инструкция, поддержка -->
+<div class="split hidden" id="scrAuth">
+  <div class="split-l"><span class="logo tx-l">витрина</span><img class="vline vl1" src="img/union-overlay.svg" alt=""><img class="vline vl2" src="img/union-soft.svg" alt=""><div class="serif">No trend,<br>Character.</div></div>
+  <form class="split-r" id="authForm" autocomplete="on">
+    <span class="clock tx-d"></span>
+    <div class="authFields">
+      <div class="authHint tx-d" id="authHint"></div>
+      <input class="authIn" id="aLogin" name="username" placeholder="логин" autocomplete="username" spellcheck="false">
+      <div class="pwRow"><input class="authIn" id="aPass" name="password" type="password" placeholder="пароль" autocomplete="current-password"><button type="button" class="eye hidden" id="aEye" title="Показать пароль"><img src="img/eye-closed.svg" alt=""></button></div>
+      <input class="authIn hidden" id="aName" placeholder="ваше имя" autocomplete="name">
+    </div>
+    <div class="authErr" id="authErr"></div>
+    <button class="bigLink tx-d" id="aGo" type="submit">войти</button>
+  </form>
+</div>
+
+<div class="split hidden" id="scrHelp">
+  <div class="split-l"><span class="logo tx-l">витрина</span><img class="vline vl1" src="img/union-overlay.svg" alt=""><img class="vline vl2" src="img/union-soft.svg" alt=""><div class="serif">How does this<br>work?</div></div>
+  <div class="split-r help-r">
+    <div class="helpText" id="helpText"></div>
+    <div class="helpFoot"><span class="clock tx-d"></span><button class="bigLink tx-d" data-close>завершить</button></div>
+  </div>
+</div>
+
+<div class="split hidden" id="scrSupport">
+  <div class="split-l"><span class="logo tx-l">витрина</span><img class="vline vl1" src="img/union-overlay.svg" alt=""><img class="vline vl2" src="img/union-soft.svg" alt=""><div class="serif">Help</div></div>
+  <div class="split-r">
+    <span class="clock tx-d"></span>
+    <div class="contacts"><a class="tx-d" href="mailto:context_rustore@gmail.com">context_rustore@gmail.com</a><a class="tx-d" href="https://t.me/context_rustore" target="_blank">tg: @context_rustore</a></div>
+    <button class="bigLink tx-d" data-close>назад</button>
+  </div>
+</div>
+
+<!-- кабинет -->
+<div class="app hidden" id="scrApp">
+<aside class="side">
+  <span class="logo tx-l">витрина</span>
   <nav>
-    <button data-tab="shop" class="on">Витрина</button>
-    <button data-tab="markup">Наценка</button>
-    <button data-tab="sold">Распроданные</button>
-    <button data-tab="log">Журнал</button>
-    <button data-tab="settings">Настройки</button>
+    <button data-tab="shop" class="on">товары</button>
+    <button data-tab="markup">наценка</button>
+    <button data-tab="sold">распроданы</button>
+    <button data-tab="log">журнал</button>
+    <button data-tab="settings">настройки</button>
+    <button data-screen="scrHelp">инструкция</button>
+    <button data-screen="scrSupport">поддержка</button>
   </nav>
+  <button class="who tx-l" id="who" title="Выйти"></button>
   <div class="foot" id="saved"></div>
 </aside>
 <main>
   <section id="shop" class="tab on">
-    <div class="top">
-      <div class="seg" id="catSeg"><button data-cat="1016" class="on">Девушкам <span id="cntW"></span></button><button data-cat="1015">Парням <span id="cntM"></span></button></div>
-      <div class="acts">
-        <button id="bUpdate" class="primary">Обновить цены и остатки</button>
-        <button id="bFigma">Сверить с Figma</button>
-        <button id="bExport">Выгрузить на витрину</button>
-      </div>
-    </div>
-    <div class="status" id="status"></div>
-    <div class="bar">
-      <input id="q" placeholder="Поиск по названию или ID">
-      <select id="flt"><option value="">Все карточки</option><option value="live">В продаже</option><option value="warn">С подсказками</option><option value="sold">Распроданные</option><option value="off">Выключенные</option><option value="moved">Не как в Figma</option></select>
-      <button id="bSortFig">Расставить как в Figma</button>
+    <div class="topbar">
+      <input id="q" class="search" placeholder="поиск" spellcheck="false">
+      <div class="topActs"><button class="btn dark" id="bUpdate">инвентаризация</button><button class="btn" id="bFigma">сверить с figma</button></div>
     </div>
     <div id="empty" class="hidden"></div>
     <div class="grid" id="grid"></div>
+    <div class="floatBar">
+      <div class="pill seg" id="catSeg"><button data-cat="1015" class="on">парням</button><button data-cat="1016">девушкам</button></div>
+      <button class="pill" id="bExport">выгрузить</button>
+    </div>
   </section>
 
   <section id="markup" class="tab">
-    <h1>Наценка</h1>
-    <p class="muted">Из этих строк складывается сумма, которая прибавляется к цене поставщика у каждого размера. Без округления.</p>
-    <div id="mkRows"></div>
-    <div class="acts"><button id="mkAdd">+ Строка</button><span class="total" id="mkTotal"></span></div>
+    <div class="page">
+      <div id="mkRows"></div>
+      <button class="txtBtn" id="mkAdd">+строка</button>
+      <div class="field"><span class="lab">Итого</span><span id="mkTotal"></span></div>
+    </div>
+    <div class="floatBar center"><button class="pill" id="mkSave">сохранить</button></div>
   </section>
 
   <section id="sold" class="tab">
-    <h1>Распроданные</h1>
-    <p class="muted">У поставщика нет ни одного размера. На витрине стоят с остатком 0; вернутся — снова в продаже и уйдут из задания.</p>
-    <div id="soldList"></div>
-    <h2>Задание сотруднику</h2>
-    <textarea id="task" rows="12" readonly></textarea>
-    <div class="acts"><button id="taskCopy">Скопировать задание</button></div>
+    <div class="page">
+      <div id="soldList"></div>
+      <div class="field"><span class="lab">Задание</span><textarea id="task" rows="9" readonly></textarea></div>
+    </div>
+    <div class="floatBar center"><button class="pill" id="taskCopy">скопировать задание</button></div>
   </section>
 
-  <section id="log" class="tab"><h1>Журнал</h1><div id="logList"></div></section>
+  <section id="log" class="tab"><div class="page" id="logList"></div></section>
 
   <section id="settings" class="tab">
-    <h1>Настройки</h1>
-    <div class="form" id="setForm"></div>
-    <div class="acts"><button class="primary" id="setSave">Сохранить</button><button id="tgFind">Найти мой chat id</button><button id="tgTest">Проверить уведомления</button></div>
-    <div class="msg info hidden" id="tgProg"></div>
-    <h2>Перенос и фото</h2>
-    <div class="acts">
-      <button id="migrate">Перенести текущую витрину</button>
-      <button id="photosFigma">Обновить все фото из Figma</button>
-      <button id="photosDrive">Перенести фото с Google Drive на GitHub</button>
+    <div class="page settings">
+      <div id="setForm"></div>
+      <div class="linkRow"><button class="lnk" id="tgFind">Найти ChatID</button><button class="lnk" id="tgTest">Проверить уведомления</button></div>
+      <div class="note hidden" id="tgProg"></div>
+      <h3>Пользователи</h3>
+      <div id="users"></div>
+      <h3>Перенос и фото</h3>
+      <div class="linkRow"><button class="lnk" id="migrate">Перенести текущую витрину</button><button class="lnk" id="photosFigma">Обновить все фото из Figma</button><button class="lnk" id="photosDrive">Перенести фото с Google Drive</button></div>
+      <h3>Резервная копия</h3>
+      <div class="linkRow"><button class="lnk" id="bkGh">Сохранить сейчас копию на GitHub</button><button class="lnk" id="bkGhLoad">Восстановить с GitHub</button><button class="lnk" id="bkFile">Скачать копию файлом</button><label class="lnk">Восстановить из файла<input type="file" id="bkLoad" accept=".json" hidden></label></div>
+      <div class="note" id="setProg"></div>
+      <div class="ver" id="ver"></div>
     </div>
-    <h2>Резервная копия</h2>
-    <div class="acts">
-      <button id="bkGh">Сохранить копию на GitHub сейчас</button>
-      <button id="bkGhLoad">Восстановить с GitHub</button>
-      <button id="bkFile">Скачать копию файлом</button>
-      <label class="filebtn">Восстановить из файла<input type="file" id="bkLoad" accept=".json"></label>
-    </div>
-    <div class="progress" id="setProg"></div>
+    <div class="floatBar center"><button class="pill" id="setSave">сохранить</button></div>
   </section>
 </main>
-<dialog id="dlg"><div id="dlgBody"></div></dialog>
-<script src="lib/xlsxwriter.js?v=3.2.3"></script>
-<script src="core.js?v=3.2.3"></script>
-<script src="net.js?v=3.2.3"></script>
-<script src="app.js?v=3.2.3"></script>
+</div>
+
+<!-- боковая панель (карточка, выгрузка, отчёты) -->
+<div class="ovl" id="ovl"></div>
+<div class="panel" id="panel"><button class="x" id="pX" title="Закрыть"><img src="img/cross.svg" alt=""></button><div id="dlgBody"></div></div>
+<div class="autoVeil hidden" id="autoVeil"><span class="serif">Автообновление…</span></div>
+
+<script src="lib/xlsxwriter.js?v=4.0.0"></script>
+<script src="core.js?v=4.0.0"></script>
+<script src="net.js?v=4.0.0"></script>
+<script src="help.js?v=4.0.0"></script>
+<script src="app.js?v=4.0.0"></script>
 </body>
 </html>
