@@ -1,4 +1,4 @@
-const APP_VERSION = '4.2.6';
+const APP_VERSION = '4.2.7';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -522,16 +522,16 @@ async function upload(b, items, auto) {
 }
 
 // ---------- наценка ----------
-function renderMarkup() {
-  if ($('#mkRows').contains(document.activeElement)) return;
+function renderMarkup(force) {
+  if (!force && $('#mkRows').contains(document.activeElement)) return;
   const L = DB.settings.markupLines;
   $('#mkRows').innerHTML = L.map((l, i) => `<div class="mkrow"><div class="field"><span class="lab"><input data-i="${i}" data-k="label" value="${h(l.label)}" placeholder="Подпись строки"></span><input class="uline" data-i="${i}" data-k="amount" inputmode="numeric" value="RUB ${fmt(l.amount)}"></div>${L.length > 1 ? `<button class="del" data-del="${i}" title="Убрать строку"><img src="img/cross.svg" alt=""></button>` : ''}</div>`).join('');
   $('#mkTotal').textContent = 'RUB ' + fmt(P());
-  $$('#mkRows input[data-k=amount]').forEach(el => { el.onfocus = () => { el.value = L[+el.dataset.i].amount; }; el.onblur = () => { L[+el.dataset.i].amount = +String(el.value).replace(/[^\d-]/g, '') || 0; el.value = 'RUB ' + fmt(L[+el.dataset.i].amount); $('#mkTotal').textContent = 'RUB ' + fmt(P()); }; });
+  $$('#mkRows input[data-k=amount]').forEach(el => { el.onfocus = () => { el.value = L[+el.dataset.i].amount; }; el.oninput = () => { L[+el.dataset.i].amount = +String(el.value).replace(/[^\d-]/g, '') || 0; $('#mkTotal').textContent = 'RUB ' + fmt(P()); }; el.onblur = () => { L[+el.dataset.i].amount = +String(el.value).replace(/[^\d-]/g, '') || 0; el.value = 'RUB ' + fmt(L[+el.dataset.i].amount); $('#mkTotal').textContent = 'RUB ' + fmt(P()); }; });
   $$('#mkRows input[data-k=label]').forEach(el => el.oninput = () => { L[+el.dataset.i].label = el.value; });
-  $$('#mkRows [data-del]').forEach(el => el.onclick = () => { L.splice(+el.dataset.del, 1); renderMarkup(); });
+  $$('#mkRows [data-del]').forEach(el => el.onclick = () => { L.splice(+el.dataset.del, 1); renderMarkup(true); $('#mkTotal').textContent = 'RUB ' + fmt(P()); });
 }
-$('#mkAdd').onclick = () => { DB.settings.markupLines.push({ label: 'Наценка', amount: 0 }); renderMarkup(); };
+$('#mkAdd').onclick = () => { DB.settings.markupLines.push({ label: 'Наценка', amount: 0 }); renderMarkup(true); };
 $('#mkSave').onclick = async () => { document.activeElement && document.activeElement.blur(); log('Наценка', `Итого ${P()} ₽`); await save(); renderMarkup(); renderGrid(); flash('#mkSave', 'сохранено'); };
 function flash(sel, t) { const el = $(sel), was = el.dataset.t || el.textContent; el.dataset.t = was; el.textContent = t; setTimeout(() => el.textContent = was, 1500); }
 
