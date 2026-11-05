@@ -1,4 +1,4 @@
-const APP_VERSION = '4.0.2';
+const APP_VERSION = '4.0.3';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -110,7 +110,7 @@ function renderGrid() {
 $('#q').oninput = renderGrid;
 
 // ---------- модальное окно ----------
-function modal(html, onReady) { $('#dlgBody').innerHTML = html; $('#dlgBody').scrollTop = 0; setTimeout(() => thumbs.forEach(t => t()), 30); document.body.classList.add('pOpen'); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
+function modal(html, onReady) { smoothWheel.stop && smoothWheel.stop(); $('#dlgBody').innerHTML = html; $('#dlgBody').scrollTop = 0; setTimeout(() => thumbs.forEach(t => t()), 30); document.body.classList.add('pOpen'); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
 function closeModal() { document.body.classList.remove('pOpen'); }
 $('#pX').onclick = closeModal; $('#ovl').onclick = () => { if (!busy) closeModal(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pOpen') && !busy) closeModal(); });
@@ -646,6 +646,7 @@ const thumbs = [makeThumb($('#dlgBody'), $('#pThumb')), makeThumb($('#helpText')
 // колесо мыши — плавно; трекпад и так плавный, его не трогаем
 function smoothWheel(getEl) {
   let target = null, raf = 0, el = null;
+  smoothWheel.stop = () => { cancelAnimationFrame(raf); el = null; target = null; };
   addEventListener('wheel', e => {
     const box = getEl(e); if (!box || e.ctrlKey) return;
     const mouse = e.deltaMode === 1 || (Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY) && e.deltaX === 0);
