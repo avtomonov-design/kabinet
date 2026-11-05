@@ -104,6 +104,8 @@ html:has(.split:not(.hidden)), body:has(.split:not(.hidden)) { overflow: hidden;
 .helpText::-webkit-scrollbar { display: none; }
 .helpText h2 { display: none; }
 .helpText h3 { font: 400 calc(22 * var(--u))/1.1 var(--narrow); margin: calc(28 * var(--u)) 0 calc(10 * var(--u)); }
+.helpText h4 { font: 700 calc(18 * var(--u))/1.17 var(--narrow); margin: calc(18 * var(--u)) 0 calc(8 * var(--u)); }
+.helpText a { color: var(--link); }
 .helpText p, .helpText ul, .helpText ol { margin: 0 0 calc(8 * var(--u)); } .helpText ul, .helpText ol { padding-left: calc(20 * var(--u)); }
 .helpFoot { display: flex; justify-content: space-between; align-items: baseline; }
 .helpFoot .bigLink { margin-top: 0; }
