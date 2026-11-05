@@ -1,4 +1,4 @@
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '4.0.1';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -49,7 +49,7 @@ async function notify(text) { try { await N.telegram(DB.settings.tgBot, DB.setti
 function tab(name) { $$('nav button[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === name)); $$('.tab').forEach(t => t.classList.toggle('on', t.id === name)); render(); scrollTo(0, 0); }
 $$('nav button[data-tab]').forEach(b => b.onclick = () => tab(b.dataset.tab));
 function screen(id) { ['scrAuth', 'scrHelp', 'scrSupport'].forEach(x => $('#' + x).classList.toggle('hidden', x !== id)); }
-$$('nav button[data-screen]').forEach(b => b.onclick = () => { if (b.dataset.screen === 'scrHelp') $('#helpText').innerHTML = window.HELP_HTML || ''; screen(b.dataset.screen); });
+$$('nav button[data-screen]').forEach(b => b.onclick = () => { if (b.dataset.screen === 'scrHelp') { $('#helpText').innerHTML = window.HELP_HTML || ''; $('#helpText').scrollTop = 0; } screen(b.dataset.screen); setTimeout(() => thumbs.forEach(t => t()), 30); });
 $$('[data-close]').forEach(b => b.onclick = () => screen(null));
 // часы на экранах входа, инструкции и поддержки
 const tick = () => { const t = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }); $$('.clock').forEach(e => e.textContent = t); };
@@ -88,7 +88,7 @@ function renderGrid() {
     const ph = C.photoUrl(c.photos[0] || {}), pr = C.priceRange(c, P());
     const hs = C.hints(DB, c, P()).filter(([k]) => k !== 'off'), hint = hs.slice(0, 2).map(x => x[1]).join(' · ');
     const price = pr ? 'RUB ' + (pr[0] === pr[1] ? fmt(pr[0]) : fmt(pr[0]) + ' – ' + fmt(pr[1])) : 'нет в продаже';
-    return `<div class="card ${c.enabled ? '' : 'off'}" data-id="${c.id}" title="${i + 1}-я · ${h(c.name)}"><span class="drag" title="Потяните, чтобы переставить"><i></i><i></i><i></i><i></i></span>${ph ? `<div class="ph"><img src="${h(ph)}" loading="lazy" alt=""></div>` : ''}<div class="meta"><div class="np"><p>${h(c.name) || 'без названия'}</p><p>${price}</p></div>${hint ? `<p class="hint ${hs.some(x => x[0] === 'bad') ? 'bad' : ''}">${h(hint)}</p>` : ''}</div></div>`;
+    return `<div class="card ${c.enabled ? '' : 'off'}" style="--i:${i}" data-id="${c.id}" title="${i + 1}-я · ${h(c.name)}"><span class="drag" title="Потяните, чтобы переставить"><i></i><i></i><i></i><i></i></span>${ph ? `<div class="ph"><img src="${h(ph)}" loading="lazy" alt=""></div>` : ''}<div class="meta"><div class="np"><p>${h(c.name) || 'без названия'}</p><p>${price}</p></div>${hint ? `<p class="hint ${hs.some(x => x[0] === 'bad') ? 'bad' : ''}">${h(hint)}</p>` : ''}</div></div>`;
   }).join('') || (DB.cards.length ? '<p class="dim" style="padding:20px">Ничего не найдено</p>' : '');
   const dragOk = !$('#q').value;
   $$('#grid .card').forEach(el => {
@@ -110,7 +110,7 @@ function renderGrid() {
 $('#q').oninput = renderGrid;
 
 // ---------- модальное окно ----------
-function modal(html, onReady) { $('#dlgBody').innerHTML = html; $('#dlgBody').scrollTop = 0; document.body.classList.add('pOpen'); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
+function modal(html, onReady) { $('#dlgBody').innerHTML = html; $('#dlgBody').scrollTop = 0; setTimeout(() => thumbs.forEach(t => t()), 30); document.body.classList.add('pOpen'); const p = $('#dlgBody .progress[id]'); if (p && p.textContent) PS = { sel: '#' + p.id, t: p.textContent, t0: Date.now() }; onReady && onReady($('#dlgBody')); }
 function closeModal() { document.body.classList.remove('pOpen'); }
 $('#pX').onclick = closeModal; $('#ovl').onclick = () => { if (!busy) closeModal(); };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('pOpen') && !busy) closeModal(); });
@@ -637,6 +637,29 @@ async function autoCheck() {
 window.addEventListener('message', e => { if (e.source === window && e.data && e.data.__kab === 'autoTick') autoCheck(); });
 setInterval(() => { if (DB.cards.length) autoCheck(); }, 60000);
 
+// ---------- короткий бегунок прокрутки (6×59, как в макете) и плавная прокрутка колесом ----------
+function makeThumb(box, th, pad = 70) {
+  const upd = () => { if (!th.offsetParent) return; const max = box.scrollHeight - box.clientHeight; if (max < 4) return th.classList.remove('on'); th.classList.add('on'); const r = box.getBoundingClientRect(), pr = th.offsetParent.getBoundingClientRect(), track = box.clientHeight - pad * 2 - 59; th.style.top = (r.top - pr.top + pad + track * (box.scrollTop / max)) + 'px'; };
+  box.addEventListener('scroll', upd, { passive: true }); new ResizeObserver(upd).observe(box); new MutationObserver(upd).observe(box, { childList: true, subtree: true }); return upd;
+}
+const thumbs = [makeThumb($('#dlgBody'), $('#pThumb')), makeThumb($('#helpText'), $('#helpThumb'), 90)];
+// колесо мыши — плавно; трекпад и так плавный, его не трогаем
+function smoothWheel(getEl) {
+  let target = null, raf = 0, el = null;
+  addEventListener('wheel', e => {
+    const box = getEl(e); if (!box || e.ctrlKey) return;
+    const mouse = e.deltaMode === 1 || (Math.abs(e.deltaY) >= 50 && Number.isInteger(e.deltaY) && e.deltaX === 0);
+    if (!mouse) return;
+    e.preventDefault(); const isWin = box === document.scrollingElement;
+    if (el !== box) { el = box; target = box.scrollTop; }
+    const max = box.scrollHeight - box.clientHeight; target = Math.max(0, Math.min(max, (target ?? box.scrollTop) + e.deltaY * (e.deltaMode === 1 ? 40 : 1)));
+    cancelAnimationFrame(raf);
+    const step = () => { const cur = box.scrollTop, d = target - cur; if (Math.abs(d) < .5) { box.scrollTop = target; el = null; return; } box.scrollTop = cur + d * .14; raf = requestAnimationFrame(step); };
+    if (isWin) document.documentElement.style.scrollBehavior = 'auto'; step();
+  }, { passive: false });
+}
+smoothWheel(e => { const t = e.target; if (t.closest && t.closest('.strip, textarea')) return null; return (t.closest && (t.closest('#dlgBody') || t.closest('#helpText'))) || (document.body.classList.contains('pOpen') || !$('#scrApp').offsetParent ? null : document.scrollingElement); });
+
 // ---------- вход: логин и пароль ----------
 // Пользователи и сессии лежат в базе моста (на этом компьютере). Сессия — cookie без срока: живёт до закрытия браузера.
 const SESS = 'kab_s';
@@ -661,7 +684,7 @@ async function startSession(u) {
 function showAuth() {
   const first = !users().length;
   closeModal(); $('#scrApp').classList.add('hidden'); screen('scrAuth');
-  $('#authHint').textContent = first ? 'первый вход — придумайте логин, пароль и имя' : '';
+  $('#authHint').textContent = '';
   $('#aName').classList.toggle('hidden', !first);
   $('#aPass').autocomplete = first ? 'new-password' : 'current-password';
   $('#aGo').textContent = first ? 'создать' : 'войти';
