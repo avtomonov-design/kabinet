@@ -5,7 +5,7 @@
 <meta name="robots" content="noindex">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@400;700&family=Inter:wght@300&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="app.css?v=4.0.3"></head>
+<link rel="stylesheet" href="app.css?v=4.1.0"></head>
 <body class="booting">
 
 <!-- экраны «во весь экран»: вход, инструкция, поддержка -->
@@ -75,7 +75,7 @@
     <div class="page">
       <div id="mkRows"></div>
       <button class="txtBtn" id="mkAdd">+строка</button>
-      <div class="field"><span class="lab">Итого</span><span id="mkTotal"></span></div>
+      <div class="field" id="mkTotalF"><span class="lab">Итого</span><span class="val" id="mkTotal"></span></div>
     </div>
     <div class="floatBar center"><button class="pill" id="mkSave">сохранить</button></div>
   </section>
@@ -83,7 +83,7 @@
   <section id="sold" class="tab">
     <div class="page">
       <div id="soldList"></div>
-      <div class="field"><span class="lab">Задание</span><textarea id="task" rows="9" readonly></textarea></div>
+      <div class="field" id="soldTask"><span class="lab">Задание</span><textarea id="task" readonly></textarea></div>
     </div>
     <div class="floatBar center"><button class="pill" id="taskCopy">скопировать задание</button></div>
   </section>
@@ -98,7 +98,7 @@
       <h3>Пользователи</h3>
       <div id="users"></div>
       <h3>Перенос и фото</h3>
-      <div class="linkRow"><button class="lnk" id="migrate">Перенести текущую витрину</button><button class="lnk" id="photosFigma">Обновить все фото из Figma</button><button class="lnk" id="photosDrive">Перенести фото с Google Drive</button></div>
+      <div class="linkRow"><button class="lnk" id="migrate">Перенести текущую витрину</button><button class="lnk" id="photosFigma">Обновить все фото из Figma</button></div>
       <h3>Резервная копия</h3>
       <div class="linkRow"><button class="lnk" id="bkGh">Сохранить сейчас копию на GitHub</button><button class="lnk" id="bkGhLoad">Восстановить с GitHub</button><button class="lnk" id="bkFile">Скачать копию файлом</button><label class="lnk">Восстановить из файла<input type="file" id="bkLoad" accept=".json" hidden></label></div>
       <div class="note" id="setProg"></div>
@@ -114,10 +114,10 @@
 <div class="panel" id="panel"><button class="x" id="pX" title="Закрыть"><img src="img/cross.svg" alt=""></button><div id="dlgBody"></div><i class="thumb" id="pThumb"></i></div>
 <div class="autoVeil hidden" id="autoVeil"><span class="serif">Автообновление…</span></div>
 
-<script src="lib/xlsxwriter.js?v=4.0.3"></script>
-<script src="core.js?v=4.0.3"></script>
-<script src="net.js?v=4.0.3"></script>
-<script src="help.js?v=4.0.3"></script>
-<script src="app.js?v=4.0.3"></script>
+<script src="lib/xlsxwriter.js?v=4.1.0"></script>
+<script src="core.js?v=4.1.0"></script>
+<script src="net.js?v=4.1.0"></script>
+<script src="help.js?v=4.1.0"></script>
+<script src="app.js?v=4.1.0"></script>
 </body>
 </html>
