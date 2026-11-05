@@ -81,7 +81,8 @@ a { color: var(--link); }
 .side .who { position: absolute; left: 19px; bottom: 13px; opacity: 1; }
 .side .foot { position: absolute; left: 19px; bottom: 58px; font-size: 13px; color: rgba(255, 255, 255, .45); }
 main { margin-left: 273px; flex: 1; min-width: 0; }
-.tab { display: none; } .tab.on { display: block; animation: riseIn .45s cubic-bezier(.2,.7,.2,1) both; }
+.tab { display: none; } .tab.on { display: block; animation: fadeIn .45s ease both; }
+.tab.on > .page, .tab.on > .topbar { animation: riseIn .45s cubic-bezier(.2,.7,.2,1) both; }
 .grid .card { animation: riseIn .5s cubic-bezier(.2,.7,.2,1) both; animation-delay: calc(min(var(--i, 0), 12) * 35ms); transition: box-shadow .25s, transform .25s; }
 .grid .card:hover { box-shadow: 0 6px 24px rgba(83, 81, 94, .08); }
 

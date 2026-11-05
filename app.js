@@ -1,4 +1,4 @@
-const APP_VERSION = '4.0.1';
+const APP_VERSION = '4.0.2';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
