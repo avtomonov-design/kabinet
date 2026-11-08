@@ -39,6 +39,7 @@
     const h = [], live = liveSizes(c), an = anomalies(c);
     if (!c.enabled) h.push(['off', 'выключена']);
     if (c.status.error) h.push(['bad', c.status.error]);
+    if (c.status.gone) h.push(['bad', 'нет у поставщика — снята с витрины']);
     if (!c.link) h.push(['bad', 'нет ссылки 4Partners']);
     if (c.status.soldOutSince) h.push(['warn', 'распродана с ' + c.status.soldOutSince.split('-').reverse().join('.')]);
     else if (c.sizes.length && live.length - an.size <= 2) h.push(['warn', 'мало размеров: ' + (live.length - an.size)]);
@@ -128,8 +129,17 @@
       const any = c.sizes.some(s => s.stock);
       if (!any) { if (!c.status.soldOutSince) { c.status.soldOutSince = today(); res.soldOut = true; } c.status.soldRuns = (c.status.soldRuns || 0) + 1; }
       else if (c.status.soldOutSince) { delete c.status.soldOutSince; delete c.status.soldRuns; res.back = true; }
-      delete c.status.error; c.status.checked = new Date().toISOString();
+      delete c.status.error; delete c.status.gone; c.status.checked = new Date().toISOString();
     }
+    return res;
+  }
+  // Товара нет у поставщика (404, пропал цвет, нет вариантов): снимаем с витрины — все размеры с остатком 0.
+  // Карточка остаётся в кабинете и попадает в «распроданы»; появится у поставщика — вернётся сама при следующей инвентаризации.
+  function takeDown(c, reason) {
+    const res = { changes: [], soldOut: false };
+    for (const s of c.sizes) { if (s.stock) res.changes.push({ card: c.id, name: c.name, cat: c.cat, sz: s.sz, sku: s.sku, oJ: s.J, nJ: s.J, oSt: s.stock, nSt: 0 }); s.stock = 0; }
+    if (!c.status.soldOutSince) { c.status.soldOutSince = today(); res.soldOut = true; }
+    c.status.gone = reason; delete c.status.error; c.status.checked = new Date().toISOString();
     return res;
   }
   // Первичное заполнение размеров новой карточки (пол — по доступным размерам)
@@ -275,6 +285,6 @@
     return L.join('\n');
   }
 
-  const api = { W, M, catName, HEADER, parseCSV, splitLink, pidOf, keyOf, driveId, photoUrl, figmaNodeFromUrl, figmaKeyFromUrl, newCard, liveSizes, anomalies, hasTwin, hints, priceRange, idState, allocSku, allocGroup, matrixLines, migrate, sizeOf, colOf, updateCard, genderOf, markupOf, buildRows, validate, hashKeys, rowKey, diffShowcase, parseTrafarets, matchTrafarets, staffTask, movedCards, placeLikeFigma, sortLikeFigma, figmaRank, strHash, uid, today, num };
+  const api = { W, M, catName, HEADER, parseCSV, splitLink, pidOf, keyOf, driveId, photoUrl, figmaNodeFromUrl, figmaKeyFromUrl, newCard, liveSizes, anomalies, hasTwin, hints, priceRange, idState, allocSku, allocGroup, matrixLines, migrate, sizeOf, colOf, updateCard, takeDown, genderOf, markupOf, buildRows, validate, hashKeys, rowKey, diffShowcase, parseTrafarets, matchTrafarets, staffTask, movedCards, placeLikeFigma, sortLikeFigma, figmaRank, strHash, uid, today, num };
   root.Core = api; if (typeof module !== 'undefined') module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

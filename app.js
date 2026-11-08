@@ -1,4 +1,4 @@
-const APP_VERSION = '4.4.1';
+const APP_VERSION = '4.5.0';
 /* Кабинет витрины 2.0 — интерфейс. Правила в core.js, сеть в net.js. */
 const C = window.Core, N = window.Net;
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -153,7 +153,8 @@ function editCard(c) {
       try {
         const data = await N.fetch4P([c.link]), d = data[c.link];
         const r = C.updateCard(c, d && d.status === 200 ? d.vs : null, C.hasTwin(DB, c), C.idState(DB));
-        if (r.error) { c.status.error = r.error; out.innerHTML = `<div class="msg bad">Не сверилось: ${h(r.error)}. Данные не тронуты.</div>`; }
+        if (r.error && (d && (d.status === 200 || d.status === 404 || d.status === 410 || d.status === 'нет данных'))) { const why = goneWhy(d.status, r.error); C.takeDown(c, why); log('Цены', `Сверка «${c.name}»: нет у поставщика (${why}) — снята с витрины`); await save(); render(); out.innerHTML = `<div class="msg warn">Нет у поставщика: ${h(why)}. Карточка снята с витрины (остаток 0) и попала в «распроданы».</div>`; }
+        else if (r.error) { c.status.error = r.error; out.innerHTML = `<div class="msg bad">Не сверилось: ${h(r.error)}. Данные не тронуты — попробуйте ещё раз.</div>`; }
         else {
           delete c.status.error; c.status.checked = new Date().toISOString();
           const pr = r.changes.filter(x => x.oSt && x.nSt && x.oJ !== x.nJ), end = r.changes.filter(x => x.oSt && !x.nSt), app = r.changes.filter(x => !x.oSt && x.nSt);
@@ -366,6 +367,7 @@ if ($('#bAdd')) $('#bAdd').onclick = () => modal(`<h2>Добавить карт�
 
 // ---------- обновить цены и остатки ----------
 $('#bUpdate').onclick = runUpdate;
+const goneWhy = (st, err) => st === 404 || st === 410 ? 'страница товара не найдена (404)' : st === 200 ? err : st === 'нет данных' ? 'на странице нет товара' : `поставщик не ответил (${st || 'нет ответа'})`;
 async function runUpdate(auto) {
   if (busy) return null; if (!DB.cards.length) return auto ? null : migrate(); let res = null;
   busy = true; modal('<h2>инвентаризация</h2><div class="progress" id="uProg">Снимаю цены и наличие у 4Partners…</div><div id="uOut"></div>');
@@ -376,26 +378,37 @@ async function runUpdate(auto) {
     const ids = C.idState(DB);
     // перепроверка тех, кто распродался бы целиком
     const suspect = list.filter(c => { if (!C.liveSizes(c).length) return false; const copy = JSON.parse(JSON.stringify(c)); const r = C.updateCard(copy, data[c.link] && data[c.link].vs, C.hasTwin(DB, c), C.idState(DB)); return !r.error && !copy.sizes.some(s => s.stock); }).map(c => c.link);
-    if (suspect.length) { prog('#uProg', 'Перепроверяю распродавшиеся модели…'); Object.assign(data, await N.fetch4P([...new Set(suspect)])); }
+    suspect.push(...list.filter(c => !(data[c.link] && data[c.link].status === 200)).map(c => c.link));   // не ответившие — спросить ещё раз
+    if (suspect.length) { prog('#uProg', 'Перепроверяю распродавшиеся и не ответившие модели…'); Object.assign(data, await N.fetch4P([...new Set(suspect)])); }
+    // если не отвечает много карточек сразу — это вход/сеть, а не товары: ничего не трогаем и не выгружаем
+    const failing = list.filter(c => !(data[c.link] && data[c.link].status === 200)).length, systemic = failing > Math.max(5, list.length * 0.1);
     DB.undo = JSON.stringify(DB.cards);
     const before = { live: DB.cards.reduce((a, c) => a + C.liveSizes(c).length, 0), sold: DB.cards.filter(c => c.status.soldOutSince).length };
-    const R = { changes: [], added: [], errors: [], notes: [], soldOut: [], back: [] };
+    const R = { changes: [], added: [], errors: [], gone: [], notes: [], soldOut: [], back: [] };
     for (const c of list) {
-      const d = data[c.link], r = C.updateCard(c, d && d.status === 200 ? d.vs : null, C.hasTwin(DB, c), ids);
-      if (r.error) { c.status.error = r.error; R.errors.push(`${c.name} (${C.catName(c.cat)}): ${r.error}`); continue; }
+      const d = data[c.link], st = d && d.status, r = C.updateCard(c, st === 200 ? d.vs : null, C.hasTwin(DB, c), ids);
+      if (r.error) {
+        if (systemic) { c.status.error = r.error; R.errors.push(`${c.name} (${C.catName(c.cat)}): ${r.error}`); continue; }
+        // товара не видно у поставщика — снимаем с витрины (остаток 0) и не мешаем выгрузке
+        const why = goneWhy(st, r.error), t = C.takeDown(c, why);
+        R.changes.push(...t.changes); if (t.soldOut) R.soldOut.push(c.name); R.gone.push(`${c.name} (${C.catName(c.cat)}): ${why}`); continue;
+      }
       R.changes.push(...r.changes); R.added.push(...r.added); r.notes.forEach(n => R.notes.push(c.name + ': ' + n));
       if (r.soldOut) R.soldOut.push(c.name); if (r.back) R.back.push(c.name);
     }
     const after = { live: DB.cards.reduce((a, c) => a + C.liveSizes(c).length, 0), sold: DB.cards.filter(c => c.status.soldOutSince).length };
     DB.lastUpdate = new Date().toISOString(); DB.lastReport = { at: DB.lastUpdate, before, after, R, sec: Math.round((Date.now() - PS.t0) / 1000) };
     const pr = R.changes.filter(c => c.oSt && c.nSt && c.oJ !== c.nJ);
-    log('Цены', `Цен изменилось ${pr.length}, закончилось ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось ${R.changes.filter(c => !c.oSt && c.nSt).length}, новых размеров ${R.added.length}, ошибок ${R.errors.length}`);
+    log('Цены', `Цен изменилось ${pr.length}, закончилось ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось ${R.changes.filter(c => !c.oSt && c.nSt).length}, новых размеров ${R.added.length}, снято (нет у поставщика) ${R.gone.length}, ошибок ${R.errors.length}`);
+    if (R.gone.length) log('Цены', 'Сняты с витрины, нет у поставщика: ' + R.gone.join('; '));
     await save(); render(); prog('#uProg', ''); showReport(DB.lastReport, true);
     const up = pr.filter(c => c.nJ > c.oJ).length;
     const t = [`🔄 ${auto ? 'Автообновление: ' : ''}цены и остатки обновлены`, `Цена изменилась: ${pr.length}${pr.length ? ` (↑${up} ↓${pr.length - up})` : ''}`, `Закончилось размеров: ${R.changes.filter(c => c.oSt && !c.nSt).length}, появилось: ${R.changes.filter(c => !c.oSt && c.nSt).length}${R.added.length ? `, новых: ${R.added.length}` : ''}`];
-    if (R.soldOut.length) t.push(`🔴 Распродались целиком: ${R.soldOut.join(', ')} — пора менять (задание в «Распроданных»)`);
+    const sold = R.soldOut.filter(n => !R.gone.some(g => g.startsWith(n + ' (')));
+    if (sold.length) t.push(`🔴 Распродались целиком: ${sold.join(', ')} — пора менять (задание в «Распроданных»)`);
     if (R.back.length) t.push(`🟢 Вернулись в продажу: ${R.back.join(', ')}`);
-    if (R.errors.length) t.push(`⚠️ Не обновились: ${R.errors.length} (данные не тронуты)`);
+    if (R.gone.length) t.push(`🚫 Нет у поставщика — сняты с витрины (остаток 0): ${R.gone.join('; ')}. Выгрузке не мешает; замена — в «распроданы»`);
+    if (R.errors.length) t.push(`⚠️ Не ответили сразу ${R.errors.length} — похоже на вход или сеть, данные не тронуты`);
     // итог по TgShop добавляется последней строкой; при автовыгрузке сообщение уходит после неё — одним письмом
     if (auto && DB.settings.autoMode === 'export') res = { R, pr, text: t };
     else { t.push(auto ? '\n📦 TgShop: витрина НЕ выгружена ⏸ (в настройках «только обновить»)' : '\n📦 TgShop: витрина НЕ выгружена — нажмите «Выгрузить на витрину»'); notify(t.join('\n')); res = { R, pr }; }
@@ -408,12 +421,14 @@ function showReport(rep, fresh) {
   const ended = R.changes.filter(c => c.oSt && !c.nSt), appeared = R.changes.filter(c => !c.oSt && c.nSt), big = pr.filter(c => Math.abs(c.nJ - c.oJ) / c.oJ >= 0.05);
   const avg = pr.length ? (pr.reduce((s, c) => s + (c.nJ - c.oJ) / c.oJ, 0) / pr.length * 100).toFixed(1) : '0';
   const cl = c => c === '1016' ? 'Д' : 'П', line = c => `${h(c.name)} ${cl(c.cat)} ${h(c.sz)}`;
-  const st = R.errors.length ? `не обновились ${R.errors.length} — их данные не тронуты` : (pr.length || ended.length || appeared.length || R.added.length) ? 'обновилось без ошибок — проверьте и выгрузите' : 'у 4Partners ничего не поменялось, ошибок нет';
+  const G = R.gone || [];
+  const st = R.errors.length ? `не обновились ${R.errors.length} — их данные не тронуты` : G.length ? `сняты с витрины: ${G.length} — нет у поставщика`  : (pr.length || ended.length || appeared.length || R.added.length) ? 'обновилось без ошибок — проверьте и выгрузите' : 'у 4Partners ничего не поменялось, ошибок нет';
   const row = (t, was, now) => `<tr><td>${t}</td><td>${was}</td><td>${now}</td></tr>`;
   let html = `<div class="msg st ${R.errors.length ? 'bad' : ''}">${st}</div><table class="t inv"><colgroup><col class="c1"><col class="c2"><col></colgroup><tr><th>Показатель</th><th>Было</th><th>Стало</th></tr>`
     + row('размеров в продаже', fmt(b.live), fmt(a.live)) + row('распроданных карточек', b.sold, a.sold)
     + row(`изменений цены${pr.length ? ` · ↑${up} ↓${pr.length - up}, в среднем ${avg}%` : ''}`, '—', pr.length)
-    + row('закончилось размеров', '—', ended.length) + row('появилось размеров', '—', appeared.length) + row('новых размеров', '—', R.added.length) + row('ошибок', '—', R.errors.length) + `</table>`;
+    + row('закончилось размеров', '—', ended.length) + row('появилось размеров', '—', appeared.length) + row('новых размеров', '—', R.added.length) + row('снято, нет у поставщика', '—', G.length) + row('ошибок', '—', R.errors.length) + `</table>`;
+  if (G.length) html += `<div class="msg warn"><b>Нет у поставщика — сняты с витрины (остаток 0):</b><br>${G.map(h).join('<br>')}<br>Выгрузке это не мешает. Замена — во вкладке «распроданы».</div>`;
   if (R.errors.length) html += `<div class="msg bad"><b>Не обновились (данные не тронуты):</b><br>${R.errors.map(h).join('<br>')}</div>`;
   if (rep.stray && rep.stray.length) html += `<div class="msg warn">На витрине TgShop есть товары, которых нет в кабинете: ${rep.stray.map(h).join(', ')}. При полной выгрузке они будут удалены.</div>`;
   if (R.soldOut.length) html += `<div class="msg warn"><b>Распродались целиком:</b> ${R.soldOut.map(h).join(', ')} — останутся на витрине с остатком 0.</div>`;
