@@ -280,7 +280,10 @@
     sold.forEach((c, i) => {
       const p = c.sizes.filter(s => s.J).map(s => s.J + P), pr = p.length ? `${Math.min(...p)}–${Math.max(...p)} ₽` : '—';
       const pos = db.order[c.cat].indexOf(c.id) + 1;
-      L.push(`${i + 1}. ${c.name} — ${catName(c.cat)}, место ${pos}, цена была ${pr}`, `   Ссылка: ${keyOf(c)}`, `   Нет в наличии с ${c.status.soldOutSince.split('-').reverse().join('.')}`, `   Искать: ${catName(c.cat).toLowerCase()}, похожий цвет и силуэт, цена ${pr}; замену поставить рядом в трафаретах Figma.`, '');
+      const since = c.status.soldOutSince.split('-').reverse().join('.'), known = p.length > 0;
+      L.push(`${i + 1}. ${c.name} — ${catName(c.cat)}, место ${pos}${known ? `, цена была ${pr}` : ''}`, `   Ссылка: ${keyOf(c)}`,
+        c.status.gone ? `   Нет у поставщика с ${since}: ${c.status.gone}` : `   Нет в наличии с ${since}`,
+        `   Искать: ${catName(c.cat).toLowerCase()}, похожий цвет и силуэт${known ? `, цена ${pr}` : ''}; замену поставить рядом в трафаретах Figma.`, '');
     });
     return L.join('\n');
   }
